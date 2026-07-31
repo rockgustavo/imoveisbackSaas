@@ -1,0 +1,188 @@
+{
+  "openapi" : "3.0.1",
+  "info" : {
+    "title" : "SaaS de administraÃ§Ã£o de corretora de imÃ³veis",
+    "description" : "Ver docs/convencoes-api.md no repositÃ³rio para o contrato completo.",
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "security" : [ {
+    "oauth2" : [ ]
+  } ],
+  "paths" : {
+    "/api/v1/tenant/parametros" : {
+      "get" : {
+        "tags" : [ "imobiliaria" ],
+        "summary" : "ParÃ¢metros configurÃ¡veis do tenant corrente",
+        "description" : "RN-00-09",
+        "operationId" : "buscar",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ParametrosResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "imobiliaria" ],
+        "summary" : "Atualiza parÃ¢metros do tenant",
+        "description" : "RN-00-09/10 â nÃ£o retroage a contrato/orÃ§amento jÃ¡ existente",
+        "operationId" : "atualizar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AtualizarParametrosRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ParametrosResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plataforma/imobiliarias" : {
+      "post" : {
+        "tags" : [ "imobiliaria" ],
+        "summary" : "Provisiona uma nova imobiliÃ¡ria (tenant)",
+        "description" : "RN-00-06/07/08",
+        "operationId" : "criar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CriarImobiliariaRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Payload invÃ¡lido â CNPJ ou slug mal formado (IMOBILIARIA_CNPJ_INVALIDO, IMOBILIARIA_SLUG_INVALIDO)"
+          },
+          "201" : {
+            "description" : "ImobiliÃ¡ria criada"
+          },
+          "409" : {
+            "description" : "CNPJ ou slug jÃ¡ cadastrado (IMOBILIARIA_CNPJ_DUPLICADO, IMOBILIARIA_SLUG_DUPLICADO)"
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "AtualizarParametrosRequest" : {
+        "required" : [ "cepCacheJanelaDias", "comissaoPercentualTeto", "fusoHorario", "geocodificacaoTentativasMax", "orcamentoValidadeDiasPadrao" ],
+        "type" : "object",
+        "properties" : {
+          "comissaoPercentualTeto" : {
+            "minimum" : 0.01,
+            "exclusiveMinimum" : false,
+            "type" : "number",
+            "example" : 6.0
+          },
+          "orcamentoValidadeDiasPadrao" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "geocodificacaoTentativasMax" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "cepCacheJanelaDias" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "fusoHorario" : {
+            "type" : "string",
+            "example" : "America/Sao_Paulo"
+          }
+        }
+      },
+      "ParametrosResponse" : {
+        "type" : "object",
+        "properties" : {
+          "comissaoPercentualTeto" : {
+            "type" : "string",
+            "description" : "Percentual â string para nÃ£o perder precisÃ£o",
+            "example" : "6.0"
+          },
+          "orcamentoValidadeDiasPadrao" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "geocodificacaoTentativasMax" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "cepCacheJanelaDias" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "fusoHorario" : {
+            "type" : "string",
+            "example" : "America/Sao_Paulo"
+          }
+        }
+      },
+      "CriarImobiliariaRequest" : {
+        "required" : [ "cnpj", "razaoSocial", "slug" ],
+        "type" : "object",
+        "properties" : {
+          "razaoSocial" : {
+            "type" : "string",
+            "example" : "Corretora Exemplo Ltda"
+          },
+          "cnpj" : {
+            "type" : "string",
+            "description" : "Com ou sem mÃ¡scara",
+            "example" : "11.222.333/0001-81"
+          },
+          "slug" : {
+            "type" : "string",
+            "description" : "MinÃºsculo, sem espaÃ§o, usado em URL administrativa",
+            "example" : "corretora-exemplo"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "oauth2" : {
+        "type" : "oauth2",
+        "flows" : {
+          "authorizationCode" : {
+            "authorizationUrl" : "http://localhost:8081/realms/imobiliaria/protocol/openid-connect/auth",
+            "tokenUrl" : "http://localhost:8081/realms/imobiliaria/protocol/openid-connect/token",
+            "scopes" : {
+              "openid" : "OpenID Connect",
+              "profile" : "Perfil",
+              "email" : "Email"
+            }
+          }
+        }
+      }
+    }
+  }
+}

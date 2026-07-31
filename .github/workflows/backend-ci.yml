@@ -1,0 +1,33 @@
+name: backend-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configura JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: mvn verify (testes + fronteiras de módulo + openapi.json)
+        run: mvn -B verify
+
+      - name: Falha se docs/api/openapi.json divergiu do contrato versionado
+        run: git diff --exit-code -- docs/api/openapi.json
+
+      - name: Publica relatório JaCoCo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/

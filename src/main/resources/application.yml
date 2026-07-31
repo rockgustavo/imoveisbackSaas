@@ -1,0 +1,85 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILE:dev}
+  application:
+    name: imobiliaria
+  datasource:
+    url: jdbc:postgresql://localhost:5435/imobiliaria
+    username: imobiliaria
+    password: imobiliaria
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        generate_statistics: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/imobiliaria}
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8081/realms/imobiliaria/protocol/openid-connect/certs}
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    oauth:
+      client-id: imobiliaria-frontend
+      use-pkce-with-authorization-code-grant: true
+      scopes: "openid profile email"
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    org.hibernate.stat: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  jpa:
+    properties:
+      hibernate:
+        generate_statistics: true
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev-seed
+server:
+  port: 8088
+logging:
+  level:
+    org.hibernate.stat: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+springdoc:
+  swagger-ui:
+    enabled: false
