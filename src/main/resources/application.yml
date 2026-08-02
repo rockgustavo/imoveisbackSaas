@@ -34,6 +34,13 @@ server:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
 
+keycloak:
+  admin:
+    server-url: ${KEYCLOAK_ADMIN_SERVER_URL:http://localhost:8081}
+    realm: imobiliaria
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:imobiliaria-backend-admin}
+    client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:backend-admin-secret-dev}
+
 springdoc:
   swagger-ui:
     enabled: true

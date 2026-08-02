@@ -60,9 +60,29 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "imobiliaria-backend-admin",
+      "name": "Backend — provisionamento de credencial (ADR-07)",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "backend-admin-secret-dev"
     }
   ],
   "users": [
+    {
+      "username": "service-account-imobiliaria-backend-admin",
+      "enabled": true,
+      "serviceAccountClientId": "imobiliaria-backend-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users"]
+      }
+    },
     {
       "username": "admin.dev",
       "enabled": true,

@@ -1,5 +1,6 @@
 package br.com.rockgustavo.imobiliaria;
 
+import br.com.rockgustavo.imobiliaria.pessoa.infra.TestKeycloakAdminConfig;
 import br.com.rockgustavo.imobiliaria.shared.security.TestSecurityConfig;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,7 +13,7 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(TestSecurityConfig.class)
+@Import({TestSecurityConfig.class, TestKeycloakAdminConfig.class})
 public abstract class AbstractIntegrationTest {
 
     @ServiceConnection

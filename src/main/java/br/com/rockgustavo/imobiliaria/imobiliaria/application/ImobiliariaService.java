@@ -3,8 +3,11 @@ package br.com.rockgustavo.imobiliaria.imobiliaria.application;
 import br.com.rockgustavo.imobiliaria.imobiliaria.domain.Imobiliaria;
 import br.com.rockgustavo.imobiliaria.imobiliaria.domain.ImobiliariaDuplicadaException;
 import br.com.rockgustavo.imobiliaria.imobiliaria.domain.ImobiliariaParametro;
+import br.com.rockgustavo.imobiliaria.imobiliaria.domain.TenantNaoEncontradoException;
 import br.com.rockgustavo.imobiliaria.imobiliaria.infra.ImobiliariaParametroRepository;
 import br.com.rockgustavo.imobiliaria.imobiliaria.infra.ImobiliariaRepository;
+import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,5 +42,15 @@ public class ImobiliariaService {
         parametroRepository.save(parametro);
 
         return imobiliaria.getId();
+    }
+
+    @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
+    @Transactional(readOnly = true)
+    public TenantAtual buscarTenantAtual() {
+        UUID tenantId = TenantContext.obter();
+        return imobiliariaRepository.findById(tenantId)
+                .map(imobiliaria -> new TenantAtual(imobiliaria.getId(), imobiliaria.getRazaoSocial(),
+                        imobiliaria.getSlug(), imobiliaria.getStatus()))
+                .orElseThrow(() -> new TenantNaoEncontradoException(tenantId));
     }
 }

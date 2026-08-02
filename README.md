@@ -33,7 +33,7 @@ Pronto. Nenhum passo manual: o banco é migrado pelo Flyway e o realm do Keycloa
 | O quê | URL | Credencial |
 |---|---|---|
 | **Aplicação** | http://localhost:4200 | `admin.dev` / `admin123` |
-| **Swagger UI** | http://localhost:8080/swagger-ui.html | botão *Authorize* → mesmo login acima |
+| **Swagger UI** | http://localhost:8088/swagger-ui.html | botão *Authorize* → mesmo login acima |
 | API | http://localhost:8080 | `Authorization: Bearer <JWT>` |
 | Keycloak (console) | http://localhost:8081/admin | `admin` / `admin` |
 | PostgreSQL | `localhost:5435` | `imobiliaria` / `imobiliaria` |
@@ -42,7 +42,7 @@ Pronto. Nenhum passo manual: o banco é migrado pelo Flyway e o realm do Keycloa
 
 | Usuário | Senha | Papel | Enxerga |
 |---|---|---|---|
-| `admin.dev` | `admin123` | `ADMINISTRADOR` | Parâmetros do tenant `imobiliaria-demo` |
+| `admin.dev` | `admin123` | `ADMINISTRADOR` | Parâmetros e pessoas do tenant `imobiliaria-demo` |
 | `plataforma.dev` | `admin123` | `PLATAFORMA_ADMIN` | Provisionamento de novas imobiliárias |
 
 ### Banco no DBeaver
@@ -81,12 +81,19 @@ br.com.rockgustavo.imobiliaria/
 ├── shared/                    infra transversal, sem regra de negócio
 │   ├── config/ security/ tenant/ exception/ audit/
 │
-└── imobiliaria/                 módulo de domínio
-    ├── ImobiliariaFacade.java     único ponto público do módulo
-    ├── api/                       controller + DTO
-    ├── domain/                    entidade, enums, invariantes (Java puro)
-    ├── application/               casos de uso, @PreAuthorize
-    └── infra/                     repositório JPA (escrita) + JdbcClient (leitura)
+├── imobiliaria/                 módulo de domínio
+│   ├── ImobiliariaFacade.java     único ponto público do módulo
+│   ├── api/                       controller + DTO
+│   ├── domain/                    entidade, enums, invariantes (Java puro)
+│   ├── application/               casos de uso, @PreAuthorize
+│   └── infra/                     repositório JPA (escrita) + JdbcClient (leitura)
+│
+└── pessoa/                      módulo de domínio
+    ├── PessoaFacade.java           único ponto público do módulo
+    ├── api/                        controller + DTO
+    ├── domain/                     entidade, enums, invariantes (Java puro)
+    ├── application/                casos de uso, @PreAuthorize
+    └── infra/                      repositório JPA (escrita), JdbcClient (leitura), adaptador Keycloak (ADR-07)
 ```
 
 | Regra de fronteira | Por quê |
@@ -138,13 +145,15 @@ O backend é **Resource Server stateless**: nunca faz login, nunca emite token, 
 
 Erro sempre em `ProblemDetail` (RFC 7807), sem stacktrace, nome de classe ou SQL — em nenhum profile, para não criar o hábito de depurar por mensagem de erro exposta.
 
+**Validação em duas camadas.** O frontend valida antes de enviar (campo obrigatório, dígito verificador, formato), mas o backend valida de novo — é ele quem garante, já que a API também é chamável direto. Quando o `@Valid` falha, o `400` carrega um campo de extensão `campos` mapeando **nome do campo → mensagem**, e não só um texto solto: é o que permite ao cliente marcar o campo exato em vez de exibir um alerta genérico. O texto da mensagem é fixado em `src/main/resources/ValidationMessages.properties` em vez de sair no idioma do `Accept-Language` de quem chamou — o cliente monta a tela em cima dele. Formato completo em [`docs/convencoes-api.md`](docs/convencoes-api.md).
+
 **Uma URL para validar, outra para buscar a chave.** O Keycloak se identifica como `localhost:8081` (o hostname que o navegador usa, e que vai no `iss` do token), mas o backend em container não alcança `localhost:8081` — ali `localhost` é ele mesmo. Por isso a configuração separa `issuer-uri` (`localhost:8081`, precisa bater exatamente com o `iss`) de `jwk-set-uri` (`keycloak:8081`, rede interna do compose). Sem essa separação, ou o navegador não consegue logar, ou o backend não consegue validar — e o hosts file deixaria de ser opcional.
 
 ---
 
 ## Modelo de dados
 
-Escopo atual (Épico 00). Dicionário completo, incluindo o que os próximos épicos adicionam: [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
+Escopo atual (Épicos 00–01). Dicionário completo, incluindo o que os próximos épicos adicionam: [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
 
 ```mermaid
 erDiagram
@@ -165,10 +174,30 @@ erDiagram
         varchar fuso_horario "default America/Sao_Paulo"
     }
 
+    pessoa {
+        uuid id PK
+        uuid tenant_id FK
+        varchar tipo_documento "CPF, CNPJ"
+        varchar documento UK "único por tenant + tipo"
+        varchar nome
+        varchar email UK "único por tenant, quando informado"
+        varchar subject_idp "subject do Keycloak, preenchido no 1º papel com credencial"
+        boolean ativo "nunca há exclusão física"
+    }
+
+    pessoa_papel {
+        uuid id PK
+        uuid tenant_id FK
+        uuid pessoa_id FK
+        varchar papel "PROPRIETARIO, USUARIO, ADMINISTRADOR — acumuláveis"
+    }
+
     imobiliaria ||--|| imobiliaria_parametro : "1 linha de parâmetros por tenant"
+    imobiliaria ||--o{ pessoa : "tenant"
+    pessoa ||--o{ pessoa_papel : "papéis acumuláveis"
 ```
 
-Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omitidos acima). `imobiliaria` não tem `tenant_id` — ela **é** o tenant.
+Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omitidos acima, exceto `pessoa_papel`, que só tem `criado_em`/`criado_por` — vínculo é criado ou removido, nunca editado). `imobiliaria` não tem `tenant_id` — ela **é** o tenant.
 
 **Parâmetro não retroage.** Quem usa um parâmetro (validade de orçamento, teto de comissão) **copia** o valor no momento relevante, em vez de fazer `JOIN` na hora da leitura. Assim, mudar o teto de comissão hoje não reescreve o passado de contratos já assinados.
 
@@ -179,8 +208,16 @@ Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omiti
 | Método | Rota | Papel | Descrição |
 |---|---|---|---|
 | POST | `/api/v1/plataforma/imobiliarias` | `PLATAFORMA_ADMIN` | Provisiona uma imobiliária (tenant) |
+| GET | `/api/v1/tenant` | `USUARIO`, `ADMINISTRADOR` | Identidade da imobiliária do token — somente leitura |
 | GET | `/api/v1/tenant/parametros` | `ADMINISTRADOR` | Parâmetros do tenant corrente |
 | PUT | `/api/v1/tenant/parametros` | `ADMINISTRADOR` | Atualiza parâmetros do tenant |
+| POST | `/api/v1/pessoas` | `ADMINISTRADOR` | Cadastra pessoa (CPF/CNPJ validado, único por tenant) |
+| GET | `/api/v1/pessoas` | `USUARIO`, `ADMINISTRADOR` | Lista pessoas do tenant — paginado, filtrável por documento/papel/classificação/situação |
+| GET | `/api/v1/pessoas/{id}` | `USUARIO`, `ADMINISTRADOR` | Detalha uma pessoa |
+| PUT | `/api/v1/pessoas/{id}` | `ADMINISTRADOR` | Atualiza dados cadastrais |
+| POST | `/api/v1/pessoas/{id}/papeis` | `ADMINISTRADOR` | Atribui papel — provisiona credencial no Keycloak quando `USUARIO`/`ADMINISTRADOR` |
+| DELETE | `/api/v1/pessoas/{id}/papeis/{papel}` | `ADMINISTRADOR` | Remove papel — rejeita remover o último `ADMINISTRADOR` ativo |
+| POST | `/api/v1/pessoas/{id}/inativacao` | `ADMINISTRADOR` | Inativa pessoa — nunca exclusão física |
 
 Contrato completo em [`docs/api/openapi.json`](docs/api/openapi.json) — gerado e versionado a cada `mvn verify`, então mudança de contrato aparece como diff no PR, não como surpresa em produção.
 
@@ -212,6 +249,7 @@ Registro completo (11 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Realm único do Keycloak, tenant por claim | Realm por tenant exigiria resolver múltiplos emissores no Resource Server — complexidade que a regra de negócio não pede |
 | Sem MapStruct | `record` + factory method é explícito, auditável e sem reflection — suficiente neste tamanho |
 | Sem mensageria/broker | Eventos do Modulith cobrem o assíncrono do MVP sem introduzir infra que precisaria ser operada |
+| Adaptador Keycloak com `RestClient`, sem SDK oficial | `keycloak-admin-client` traz RESTEasy como transitiva — risco real de conflito com o Tomcat embarcado do Spring, por duas chamadas HTTP simples |
 
 ---
 
@@ -222,8 +260,8 @@ Construído por épicos, cada um fechado com teste e documentação antes do pr�
 | Épico | Escopo | Status |
 |---|---|---|
 | 00 — Fundação | Tenant, parâmetros, autenticação | ✅ Implementado |
-| 01 — Pessoas e papéis | Módulo `pessoa` | Planejado |
-| 02 — Acesso e autorização | Provisionamento via Keycloak Admin API | Planejado |
+| 01 — Pessoas e papéis | Módulo `pessoa`, provisionamento de credencial via Keycloak Admin API | ✅ Implementado |
+| 02 — Acesso e autorização | Autorização por papel além do CRUD básico, revogação imediata de acesso | Planejado |
 | 03 — Propriedades | Módulo `propriedade` | Planejado |
 | 04 — Geolocalização | Cache de CEP, geocodificação | Planejado |
 | 05 — Orçamentos | Módulo `orcamento` | Planejado |

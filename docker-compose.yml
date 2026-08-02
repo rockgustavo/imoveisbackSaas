@@ -52,6 +52,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: imobiliaria
       KEYCLOAK_ISSUER_URI: http://localhost:8081/realms/imobiliaria
       KEYCLOAK_JWKS_URI: http://keycloak:8081/realms/imobiliaria/protocol/openid-connect/certs
+      KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8081
     ports:
       - "8080:8080"
     depends_on:

@@ -18,7 +18,7 @@
         "tags" : [ "imobiliaria" ],
         "summary" : "ParÃ¢metros configurÃ¡veis do tenant corrente",
         "description" : "RN-00-09",
-        "operationId" : "buscar",
+        "operationId" : "buscar_1",
         "responses" : {
           "200" : {
             "description" : "OK",
@@ -61,6 +61,70 @@
         }
       }
     },
+    "/api/v1/pessoas/{id}" : {
+      "get" : {
+        "tags" : [ "pessoa" ],
+        "summary" : "Detalha uma pessoa",
+        "operationId" : "buscar_2",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "Pessoa nÃ£o encontrada, ou de outro tenant (PESSOA_NAO_ENCONTRADA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PessoaResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "pessoa" ],
+        "summary" : "Atualiza dados cadastrais da pessoa",
+        "operationId" : "atualizar_1",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AtualizarPessoaRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "409" : {
+            "description" : "E-mail jÃ¡ cadastrado no tenant (PESSOA_EMAIL_DUPLICADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PessoaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plataforma/imobiliarias" : {
       "post" : {
         "tags" : [ "imobiliaria" ],
@@ -86,6 +150,264 @@
           },
           "409" : {
             "description" : "CNPJ ou slug jÃ¡ cadastrado (IMOBILIARIA_CNPJ_DUPLICADO, IMOBILIARIA_SLUG_DUPLICADO)"
+          }
+        }
+      }
+    },
+    "/api/v1/pessoas" : {
+      "get" : {
+        "tags" : [ "pessoa" ],
+        "summary" : "Lista pessoas do tenant",
+        "description" : "RN-01-08/09",
+        "operationId" : "listar",
+        "parameters" : [ {
+          "name" : "documento",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "papel",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "PROPRIETARIO", "USUARIO", "ADMINISTRADOR" ]
+          }
+        }, {
+          "name" : "classificacao",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "LEAD", "PROSPECT", "CLIENTE", "CLIENTE_INATIVO" ]
+          }
+        }, {
+          "name" : "ativo",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "name" : "pageable",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/Pageable"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponsePessoaResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "pessoa" ],
+        "summary" : "Cadastra uma pessoa",
+        "description" : "RN-01-01/02",
+        "operationId" : "criar_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CriarPessoaRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "403" : {
+            "description" : "Sem papel ADMINISTRADOR"
+          },
+          "400" : {
+            "description" : "Documento invÃ¡lido (PESSOA_DOCUMENTO_INVALIDO)"
+          },
+          "201" : {
+            "description" : "Pessoa criada"
+          },
+          "401" : {
+            "description" : "Sem token"
+          },
+          "409" : {
+            "description" : "Documento ou e-mail jÃ¡ cadastrado no tenant (PESSOA_DOCUMENTO_DUPLICADO, PESSOA_EMAIL_DUPLICADO)"
+          }
+        }
+      }
+    },
+    "/api/v1/pessoas/{id}/papeis" : {
+      "post" : {
+        "tags" : [ "pessoa" ],
+        "summary" : "Atribui papel a uma pessoa",
+        "description" : "RN-01-03/04/10",
+        "operationId" : "atribuirPapel",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AtribuirPapelRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "422" : {
+            "description" : "E-mail obrigatÃ³rio para USUARIO/ADMINISTRADOR (PESSOA_EMAIL_OBRIGATORIO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PessoaResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Papel jÃ¡ atribuÃ­do ou e-mail duplicado (PESSOA_PAPEL_JA_ATRIBUIDO, PESSOA_EMAIL_DUPLICADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PessoaResponse"
+                }
+              }
+            }
+          },
+          "502" : {
+            "description" : "Falha ao provisionar credencial no Keycloak (CREDENCIAL_PROVISIONAMENTO_FALHOU)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PessoaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pessoas/{id}/inativacao" : {
+      "post" : {
+        "tags" : [ "pessoa" ],
+        "summary" : "Inativa uma pessoa",
+        "description" : "RN-01-05/06, RN-02-04",
+        "operationId" : "inativar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Pessoa inativada"
+          },
+          "422" : {
+            "description" : "Ãltimo ADMINISTRADOR ativo nÃ£o pode ser inativado (PESSOA_ULTIMO_ADMINISTRADOR)"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant" : {
+      "get" : {
+        "tags" : [ "imobiliaria" ],
+        "summary" : "Identifica a imobiliÃ¡ria do token corrente",
+        "description" : "Somente leitura â a identidade do tenant Ã© definida no provisionamento (RN-00-06) e nÃ£o tem endpoint de alteraÃ§Ã£o",
+        "operationId" : "buscar",
+        "responses" : {
+          "403" : {
+            "description" : "Sem papel USUARIO ou ADMINISTRADOR",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "ImobiliÃ¡ria do tenant corrente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Tenant do token nÃ£o existe (TENANT_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Sem token",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pessoas/{id}/papeis/{papel}" : {
+      "delete" : {
+        "tags" : [ "pessoa" ],
+        "summary" : "Remove papel de uma pessoa",
+        "description" : "RN-01-07",
+        "operationId" : "removerPapel",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "papel",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "PROPRIETARIO", "USUARIO", "ADMINISTRADOR" ]
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Papel removido"
+          },
+          "422" : {
+            "description" : "Ãltimo ADMINISTRADOR ativo nÃ£o pode ser removido (PESSOA_ULTIMO_ADMINISTRADOR)"
           }
         }
       }
@@ -147,6 +469,59 @@
           }
         }
       },
+      "AtualizarPessoaRequest" : {
+        "required" : [ "nome" ],
+        "type" : "object",
+        "properties" : {
+          "nome" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          }
+        }
+      },
+      "PessoaResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tipoDocumento" : {
+            "type" : "string"
+          },
+          "documento" : {
+            "type" : "string"
+          },
+          "nome" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "ativo" : {
+            "type" : "boolean"
+          },
+          "papeis" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "classificacao" : {
+            "type" : "string"
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "alteradoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "CriarImobiliariaRequest" : {
         "required" : [ "cnpj", "razaoSocial", "slug" ],
         "type" : "object",
@@ -164,6 +539,105 @@
             "type" : "string",
             "description" : "MinÃºsculo, sem espaÃ§o, usado em URL administrativa",
             "example" : "corretora-exemplo"
+          }
+        }
+      },
+      "CriarPessoaRequest" : {
+        "required" : [ "documento", "nome", "tipoDocumento" ],
+        "type" : "object",
+        "properties" : {
+          "tipoDocumento" : {
+            "type" : "string",
+            "enum" : [ "CPF", "CNPJ" ]
+          },
+          "documento" : {
+            "type" : "string",
+            "example" : "52998224725"
+          },
+          "nome" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          }
+        }
+      },
+      "AtribuirPapelRequest" : {
+        "required" : [ "papel" ],
+        "type" : "object",
+        "properties" : {
+          "papel" : {
+            "type" : "string",
+            "enum" : [ "PROPRIETARIO", "USUARIO", "ADMINISTRADOR" ]
+          },
+          "email" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TenantResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "razaoSocial" : {
+            "type" : "string"
+          },
+          "slug" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        }
+      },
+      "Pageable" : {
+        "type" : "object",
+        "properties" : {
+          "page" : {
+            "minimum" : 0,
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "minimum" : 1,
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "sort" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "PageResponsePessoaResponse" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PessoaResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         }
       }
