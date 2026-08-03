@@ -654,6 +654,46 @@
         }
       }
     },
+    "/api/v1/ceps/{cep}" : {
+      "get" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Consulta endereÃ§o por CEP",
+        "description" : "RN-03-02/04, RN-04-01/03 â resultado cacheado pela janela do tenant",
+        "operationId" : "consultar",
+        "parameters" : [ {
+          "name" : "cep",
+          "in" : "path",
+          "description" : "8 dÃ­gitos, com ou sem mÃ¡scara",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "01310100"
+          }
+        } ],
+        "responses" : {
+          "502" : {
+            "description" : "Fornecedor de CEP indisponÃ­vel (CEP_PROVEDOR_INDISPONIVEL)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CepResponse"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Consulta concluÃ­da â verificar campo encontrado; CEP inexistente nÃ£o Ã© erro (CEP_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CepResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/pessoas/{id}/papeis/{papel}" : {
       "delete" : {
         "tags" : [ "pessoa" ],
@@ -1182,6 +1222,37 @@
           "totalPages" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }
+      },
+      "CepResponse" : {
+        "type" : "object",
+        "properties" : {
+          "cep" : {
+            "type" : "string"
+          },
+          "encontrado" : {
+            "type" : "boolean"
+          },
+          "logradouro" : {
+            "type" : "string"
+          },
+          "bairro" : {
+            "type" : "string"
+          },
+          "localidade" : {
+            "type" : "string"
+          },
+          "uf" : {
+            "type" : "string"
+          },
+          "latitude" : {
+            "type" : "number",
+            "example" : -23.561684
+          },
+          "longitude" : {
+            "type" : "number",
+            "example" : -46.655981
           }
         }
       }

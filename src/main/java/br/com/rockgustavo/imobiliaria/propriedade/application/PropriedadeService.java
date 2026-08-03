@@ -2,13 +2,16 @@ package br.com.rockgustavo.imobiliaria.propriedade.application;
 
 import br.com.rockgustavo.imobiliaria.pessoa.PessoaFacade;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.Endereco;
+import br.com.rockgustavo.imobiliaria.propriedade.domain.EnderecoAlterado;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.Propriedade;
+import br.com.rockgustavo.imobiliaria.propriedade.domain.PropriedadeCadastrada;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.PropriedadeNaoEncontradaException;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.PropriedadeProprietarioInvalidoException;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeQueryRepository;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeRepository;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeResumoView;
 import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,12 +26,14 @@ public class PropriedadeService {
     private final PropriedadeRepository propriedadeRepository;
     private final PropriedadeQueryRepository queryRepository;
     private final PessoaFacade pessoaFacade;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PropriedadeService(PropriedadeRepository propriedadeRepository, PropriedadeQueryRepository queryRepository,
-                               PessoaFacade pessoaFacade) {
+                               PessoaFacade pessoaFacade, ApplicationEventPublisher eventPublisher) {
         this.propriedadeRepository = propriedadeRepository;
         this.queryRepository = queryRepository;
         this.pessoaFacade = pessoaFacade;
+        this.eventPublisher = eventPublisher;
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
@@ -38,6 +43,7 @@ public class PropriedadeService {
         Propriedade propriedade = new Propriedade(comando.proprietarioId(), comando.tipo(), comando.areaPrivativa(),
                 comando.quartos(), comando.vagas(), comando.valorReferencia(), paraEndereco(comando));
         propriedadeRepository.save(propriedade);
+        eventPublisher.publishEvent(new PropriedadeCadastrada(propriedade.getId(), TenantContext.obter()));
         return propriedade.getId();
     }
 
@@ -57,8 +63,11 @@ public class PropriedadeService {
         }
         Endereco endereco = new Endereco(comando.cep(), comando.logradouro(), comando.numero(), comando.complemento(),
                 comando.bairro(), comando.localidade(), comando.uf(), comando.enderecoValidado());
-        propriedade.atualizar(comando.tipo(), comando.areaPrivativa(), comando.quartos(), comando.vagas(),
-                comando.valorReferencia(), endereco);
+        boolean enderecoMudou = propriedade.atualizar(comando.tipo(), comando.areaPrivativa(), comando.quartos(),
+                comando.vagas(), comando.valorReferencia(), endereco);
+        if (enderecoMudou) {
+            eventPublisher.publishEvent(new EnderecoAlterado(propriedade.getId(), TenantContext.obter()));
+        }
         return paraDetalhe(propriedade);
     }
 

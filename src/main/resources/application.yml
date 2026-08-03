@@ -3,6 +3,9 @@ spring:
     active: ${SPRING_PROFILE:dev}
   application:
     name: imobiliaria
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: jdbc:postgresql://localhost:5435/imobiliaria
     username: imobiliaria
@@ -40,6 +43,13 @@ keycloak:
     realm: imobiliaria
     client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:imobiliaria-backend-admin}
     client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:backend-admin-secret-dev}
+
+geo:
+  cep:
+    brasilapi-base-url: ${GEO_CEP_BASE_URL:https://brasilapi.com.br}
+  geocodificacao:
+    nominatim-base-url: ${GEO_NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
+    user-agent: ${GEO_NOMINATIM_USER_AGENT:imobiliaria-saas-portfolio/1.0}
 
 springdoc:
   swagger-ui:

@@ -25,6 +25,11 @@ public class ImobiliariaParametroService {
         return paraView(buscarEntidadeDoTenantAtual());
     }
 
+    @Transactional(readOnly = true)
+    public ParametrosTenant buscarPorTenant(UUID tenantId) {
+        return paraView(repository.findById(tenantId).orElseThrow(() -> new TenantSemParametroException(tenantId)));
+    }
+
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Transactional
     public ParametrosTenant atualizar(AtualizarParametrosComando comando) {

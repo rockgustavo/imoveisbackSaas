@@ -79,7 +79,7 @@ A fronteira de primeiro nível é o **domínio**, não a camada técnica — cad
 ```
 br.com.rockgustavo.imobiliaria/
 ├── shared/                    infra transversal, sem regra de negócio
-│   ├── config/ security/ tenant/ exception/ audit/
+│   ├── config/ security/ tenant/ exception/ audit/ geo/
 │
 ├── imobiliaria/                 módulo de domínio
 │   ├── ImobiliariaFacade.java     único ponto público do módulo
@@ -97,11 +97,13 @@ br.com.rockgustavo.imobiliaria/
 │
 └── propriedade/                 módulo de domínio
     ├── PropriedadeFacade.java      único ponto público do módulo — ainda sem método: nenhum outro módulo consome ainda
-    ├── api/                        controller + DTO
-    ├── domain/                     Propriedade, Endereco (@Embeddable), máquina de estados de situação
-    ├── application/                casos de uso, @PreAuthorize, job de reconciliação (ADR-14)
+    ├── api/                        controller + DTO, inclui GET /ceps/{cep}
+    ├── domain/                     Propriedade, Endereco (@Embeddable), máquina de estados de situação, eventos de geocodificação
+    ├── application/                casos de uso, @PreAuthorize, job de reconciliação (ADR-14), geocodificação assíncrona (ADR-04/15)
     └── infra/                      repositório JPA (escrita), JdbcClient (leitura)
 ```
+
+`shared/geo` guarda as portas `CepClient`/`GeocodificacaoClient`, os adaptadores (BrasilAPI, Nominatim) e a tabela `cep_cache` — infra genérica, sem `tenant_id`, sem conhecer `propriedade` (ADR-15). O que precisa do agregado `Propriedade` ou de parâmetro por tenant fica em `propriedade/application`, nunca em `shared` — é a regra de fronteira "shared não conhece módulo de domínio" aplicada literalmente, não só de nome.
 
 | Regra de fronteira | Por quê |
 |---|---|
@@ -136,6 +138,8 @@ O isolamento é aplicado em dois mecanismos independentes, um por lado do CQRS, 
 
 Recurso de outro tenant retorna **`404`, nunca `403`**: um `403` confirmaria que o recurso existe para alguém que não deveria nem saber disso. Há um teste de integração que tenta furar o isolamento e espera falhar — ele não é removido nem quando parece redundante.
 
+**Tenant fora da requisição HTTP.** `TenantContext` é um `ThreadLocal`, e a geocodificação assíncrona (Épico 04) foi o primeiro código do projeto a rodar fora da thread que o `TenantContextFilter` preenche. Dois casos, duas soluções: o job `@Scheduled` de retry cruza tenants por natureza (é um reprocessamento em lote), então ele mesmo chama `TenantContext.definir(tenantId)` por candidato, dentro do próprio laço; já o listener assíncrono de evento (`@ApplicationModuleListener`, que empacota `@Transactional` no próprio método) precisa do tenant certo **antes** do proxy transacional abrir sessão — tarde demais para setar dentro do corpo do método. Resolvido com um `TaskDecorator` (`shared/tenant/TenantContextTaskDecorator`) que propaga o `ThreadLocal` da thread que publicou o evento para a thread assíncrona, registrado como o executor padrão de `@Async` via `AsyncConfigurer` (`shared/config/AsyncConfig`) — sem isso, `@EnableScheduling` cria um segundo bean candidato a `TaskExecutor` e o `@Async` cai num executor não gerenciado, sem decorator nenhum. Detalhe completo, incluindo o teste que expôs o bug, em ADR-15.
+
 ### Segurança
 
 ```
@@ -164,7 +168,7 @@ Erro sempre em `ProblemDetail` (RFC 7807), sem stacktrace, nome de classe ou SQL
 
 ## Modelo de dados
 
-Escopo atual (Épicos 00–03). Dicionário completo, incluindo o que os próximos épicos adicionam: [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
+Escopo atual (Épicos 00–04). Dicionário completo, incluindo o que os próximos épicos adicionam: [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
 
 ```mermaid
 erDiagram
@@ -212,8 +216,9 @@ erDiagram
         varchar situacao "DISPONIVEL, AGENCIADA, RESERVADA, VENDIDA, RETIRADA"
         varchar cep "endereço inteiro é snapshot @Embeddable, não @ManyToOne"
         boolean endereco_validado "false quando o CEP não foi encontrado"
-        numeric latitude "nulo até o Épico 04 geocodificar"
+        numeric latitude "preenchida por geocodificação assíncrona (Épico 04)"
         varchar geo_situacao "PENDENTE, CONCLUIDA, MANUAL — default PENDENTE"
+        smallint geo_tentativas "backoff exponencial até geocodificacao_tentativas_max"
     }
 
     imobiliaria ||--|| imobiliaria_parametro : "1 linha de parâmetros por tenant"
@@ -224,6 +229,8 @@ erDiagram
 ```
 
 Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omitidos acima, exceto `pessoa_papel`, que só tem `criado_em`/`criado_por` — vínculo é criado ou removido, nunca editado). `imobiliaria` não tem `tenant_id` — ela **é** o tenant.
+
+Duas tabelas do Épico 04 ficam fora do diagrama por não terem relacionamento com nada acima: `cep_cache` (sem `tenant_id` — CEP tem o mesmo endereço para qualquer tenant, ADR-06) e `event_publication` (registro de eventos do Spring Modulith, schema oficial do `spring-modulith-events-jdbc`, criado por migration em vez do inicializador automático — ADR-15).
 
 **Parâmetro não retroage.** Quem usa um parâmetro (validade de orçamento, teto de comissão) **copia** o valor no momento relevante, em vez de fazer `JOIN` na hora da leitura. Assim, mudar o teto de comissão hoje não reescreve o passado de contratos já assinados.
 
@@ -244,6 +251,7 @@ Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omiti
 | POST | `/api/v1/pessoas/{id}/papeis` | `ADMINISTRADOR` | Atribui papel — provisiona credencial no Keycloak quando `USUARIO`/`ADMINISTRADOR` |
 | DELETE | `/api/v1/pessoas/{id}/papeis/{papel}` | `ADMINISTRADOR` | Remove papel — rejeita remover o último `ADMINISTRADOR` ativo |
 | POST | `/api/v1/pessoas/{id}/inativacao` | `ADMINISTRADOR` | Inativa pessoa — nunca exclusão física |
+| GET | `/api/v1/ceps/{cep}` | `USUARIO`, `ADMINISTRADOR` | Consulta endereço por CEP — cacheado pela janela do tenant, `200` mesmo quando não encontrado |
 | POST | `/api/v1/propriedades` | `USUARIO`, `ADMINISTRADOR` | Cadastra propriedade — proprietário precisa ter papel `PROPRIETARIO` e estar ativo |
 | GET | `/api/v1/propriedades` | `USUARIO`, `ADMINISTRADOR` | Lista propriedades do tenant — paginado, filtrável por situação/proprietário/localidade/UF/faixa de valor |
 | GET | `/api/v1/propriedades/{id}` | `USUARIO`, `ADMINISTRADOR` | Detalha uma propriedade |
@@ -274,11 +282,13 @@ JaCoCo tem piso alto em `*/domain/**`. Meta de cobertura global fica de fora de 
 
 **Uma lacuna de cobertura, documentada em vez de escondida.** `reserva`, desfazer reserva e `venda` só têm gatilho a partir de `AGENCIADA`/`RESERVADA` — estados que, neste épico, só o módulo `contrato` (Épico 06) alcança. A API de propriedade sozinha só chega em `RETIRADA`. Os testes de API desses três endpoints comprovam a rejeição corretamente (chamando a partir de `DISPONIVEL`, onde a transição é mesmo inválida); o caminho de sucesso é coberto no nível de domínio (`PropriedadeTest`), não de ponta a ponta via HTTP — isso só fecha quando `contrato` existir.
 
+**Assíncrono testado de verdade, não só "não quebrou".** `GeocodificacaoAssincronaIT` faz `POST /propriedades`, recebe `201` (a geocodificação não bloqueia a resposta, RN-03-08) e só então usa Awaitility para esperar `geoSituacao` virar `CONCLUIDA` numa chamada `GET` separada — sem isso, o teste provaria só que o cadastro funciona, não que o evento assíncrono chega. Foi esse teste que pegou o bug de `TenantContext` descrito acima: sem o `TaskDecorator`, ele ficava vermelho por timeout (`PENDENTE` para sempre), não por exceção — o listener rodava, terminava sem erro, e simplesmente não encontrava a propriedade no tenant errado. Os testes de fake em `shared/geo/TestGeoConfig` usam um CEP sentinela (`01000000`) só para o caminho de sucesso — todo outro teste do módulo `propriedade` usa CEPs que caem no `Optional.empty()` default, então nenhum teste existente ficou sujeito à corrida entre a asserção e o listener assíncrono.
+
 ---
 
 ## Decisões técnicas
 
-Registro completo (14 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
+Registro completo (15 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
 
 | Decisão | Motivação |
 |---|---|
@@ -291,6 +301,9 @@ Registro completo (14 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | `AcessoPort` declarado em `shared`, implementado em `pessoa` | O interceptor de revogação de acesso (RN-02-04) mora em `shared` e roda pra toda rota, mas quem sabe se uma pessoa está ativa é o módulo `pessoa` — e `shared` não pode importar módulo de domínio (`CLAUDE.md` §3). A interface inverte a dependência: `shared` pergunta, `pessoa` responde |
 | Endereço da propriedade recebido pronto, sem CEP client no Épico 03 | `GET /ceps/{cep}` só existe no Épico 04 — posterior na sequência de ondas. `POST /propriedades` recebe o endereço já resolvido por quem chamou, com `enderecoValidado` explícito (ADR-13) |
 | Job de reconciliação de RN-03-09 antecipado como stub | `contrato`/`agenciamento` só existem no Épico 06 — não há, ainda, contra o que reconciliar. `@Scheduled` diário já existe e roda; a lógica de comparação chega junto do módulo `contrato` (ADR-14) |
+| BrasilAPI para CEP, Nominatim para geocodificação | Nominatim é o geocodificador do próprio OpenStreetMap — mesmo ecossistema de mapa que o front já usa via Leaflet, em vez de um segundo fornecedor. As duas portas (`CepClient`, `GeocodificacaoClient`) trocam de adaptador sem tocar em domínio (RN-04-01) (ADR-15) |
+| Backoff exponencial sem coluna nova | O job de retry reaproveita `alterado_em` (já mantido por `@LastModifiedDate`) como carimbo da última tentativa, em vez de uma coluna `geo_proxima_tentativa_em` só para isso — efeito colateral aceito: um `PUT` não relacionado ao endereço adia a próxima tentativa, sem afetar a correção (ADR-15) |
+| `@DynamicUpdate` em `Propriedade` | Primeira escrita concorrente do projeto (listener assíncrono e requisição HTTP podem tocar a mesma linha). Sem isso, o `UPDATE` de uma reverteria em silêncio os campos que a outra mudou — `@DynamicUpdate` faz o Hibernate escrever só as colunas que cada sessão de fato alterou (ADR-15) |
 
 ---
 
@@ -304,7 +317,7 @@ Construído por épicos, cada um fechado com teste e documentação antes do pr�
 | 01 — Pessoas e papéis | Módulo `pessoa`, provisionamento de credencial via Keycloak Admin API | ✅ Implementado |
 | 02 — Acesso e autorização | Autorização por papel além do CRUD básico, revogação imediata de acesso | ✅ Implementado |
 | 03 — Propriedades | Módulo `propriedade`, endereço snapshot, máquina de estados | ✅ Implementado |
-| 04 — Geolocalização | Cache de CEP, geocodificação | Planejado |
+| 04 — Geolocalização | Cache de CEP, geocodificação assíncrona com retry e backoff | ✅ Implementado |
 | 05 — Orçamentos | Módulo `orcamento` | Planejado |
 | 06 — Contratos | Módulo `contrato`, exclusividade de agenciamento | Planejado |
 | 07 — Mapa | Bounding box, filtros geográficos | Planejado |

@@ -1,6 +1,11 @@
 {
   "realm": "imobiliaria",
   "enabled": true,
+  "displayName": "Work Station",
+  "displayNameHtml": "Work Station<br/><span style=\"font-size:0.55em;font-weight:400;opacity:0.85;\">Controle Imobiliário</span>",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt-BR"],
+  "defaultLocale": "pt-BR",
   "sslRequired": "none",
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,

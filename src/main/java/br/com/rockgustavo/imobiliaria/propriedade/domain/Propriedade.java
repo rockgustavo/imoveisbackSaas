@@ -9,6 +9,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.TenantId;
 
 import java.math.BigDecimal;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "propriedade")
+@DynamicUpdate
 public class Propriedade extends Auditable {
 
     @Id
@@ -86,14 +88,39 @@ public class Propriedade extends Auditable {
         return valor;
     }
 
-    public void atualizar(TipoPropriedade tipo, BigDecimal areaPrivativa, Short quartos, Short vagas,
-                           BigDecimal valorReferencia, Endereco endereco) {
+    public boolean atualizar(TipoPropriedade tipo, BigDecimal areaPrivativa, Short quartos, Short vagas,
+                              BigDecimal valorReferencia, Endereco endereco) {
         this.tipo = Objects.requireNonNull(tipo, "tipo é obrigatório");
         this.areaPrivativa = areaPrivativa;
         this.quartos = quartos;
         this.vagas = vagas;
         this.valorReferencia = exigirPositivo(valorReferencia, "valorReferencia");
-        this.endereco = Objects.requireNonNull(endereco, "endereco é obrigatório");
+        boolean enderecoMudou = !this.endereco.equals(Objects.requireNonNull(endereco, "endereco é obrigatório"));
+        this.endereco = endereco;
+        if (enderecoMudou) {
+            reiniciarGeolocalizacao();
+        }
+        return enderecoMudou;
+    }
+
+    private void reiniciarGeolocalizacao() {
+        this.geoSituacao = GeoSituacao.PENDENTE;
+        this.geoTentativas = 0;
+        this.latitude = null;
+        this.longitude = null;
+    }
+
+    public void concluirGeolocalizacao(BigDecimal latitude, BigDecimal longitude) {
+        this.latitude = Objects.requireNonNull(latitude, "latitude é obrigatória");
+        this.longitude = Objects.requireNonNull(longitude, "longitude é obrigatória");
+        this.geoSituacao = GeoSituacao.CONCLUIDA;
+    }
+
+    public void registrarTentativaFalhaGeo(short tentativasMax) {
+        this.geoTentativas++;
+        if (this.geoTentativas >= tentativasMax) {
+            this.geoSituacao = GeoSituacao.MANUAL;
+        }
     }
 
     public void trocarProprietario(UUID novoProprietarioId) {

@@ -106,6 +106,24 @@ public class PropriedadeQueryRepository {
         return consulta;
     }
 
+    public List<PropriedadePendenteGeoView> buscarPendentesDeGeoDeTodosOsTenants() {
+        return jdbcClient.sql("""
+                SELECT id, tenant_id, geo_tentativas, alterado_em
+                  FROM propriedade
+                 WHERE geo_situacao = 'PENDENTE'
+                """)
+                .query(this::mapearPendenteGeo)
+                .list();
+    }
+
+    private PropriedadePendenteGeoView mapearPendenteGeo(ResultSet rs, int rowNum) throws SQLException {
+        return new PropriedadePendenteGeoView(
+                (UUID) rs.getObject("id"),
+                (UUID) rs.getObject("tenant_id"),
+                rs.getShort("geo_tentativas"),
+                rs.getTimestamp("alterado_em").toInstant());
+    }
+
     private PropriedadeResumoView mapear(ResultSet rs, int rowNum) throws SQLException {
         return new PropriedadeResumoView(
                 (UUID) rs.getObject("id"),

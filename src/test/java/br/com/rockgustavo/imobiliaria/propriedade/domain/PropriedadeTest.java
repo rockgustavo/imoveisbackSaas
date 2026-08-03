@@ -210,4 +210,63 @@ class PropriedadeTest {
             assertThat(propriedade.getEndereco()).isEqualTo(novoEndereco);
         }
     }
+
+    @Nested
+    @DisplayName("RN-04-02/04-05: ciclo de geolocalização")
+    class Geolocalizacao {
+
+        @Test
+        @DisplayName("atualizar com o mesmo endereço não reinicia a geolocalização")
+        void atualizarComMesmoEnderecoNaoReiniciaGeo() {
+            Propriedade propriedade = PropriedadeTestBuilder.umaPropriedade().build();
+            propriedade.concluirGeolocalizacao(new BigDecimal("-23.561684"), new BigDecimal("-46.655981"));
+
+            boolean enderecoMudou = propriedade.atualizar(propriedade.getTipo(), propriedade.getAreaPrivativa(),
+                    propriedade.getQuartos(), propriedade.getVagas(), propriedade.getValorReferencia(),
+                    PropriedadeTestBuilder.enderecoPadrao());
+
+            assertThat(enderecoMudou).isFalse();
+            assertThat(propriedade.getGeoSituacao()).isEqualTo(GeoSituacao.CONCLUIDA);
+        }
+
+        @Test
+        @DisplayName("atualizar com endereço diferente reinicia a geolocalização para PENDENTE")
+        void atualizarComEnderecoDiferenteReiniciaGeo() {
+            Propriedade propriedade = PropriedadeTestBuilder.umaPropriedade().build();
+            propriedade.concluirGeolocalizacao(new BigDecimal("-23.561684"), new BigDecimal("-46.655981"));
+            Endereco novoEndereco = new Endereco("20040020", "Av. Rio Branco", "1", null, "Centro",
+                    "Rio de Janeiro", "RJ", true);
+
+            boolean enderecoMudou = propriedade.atualizar(propriedade.getTipo(), propriedade.getAreaPrivativa(),
+                    propriedade.getQuartos(), propriedade.getVagas(), propriedade.getValorReferencia(), novoEndereco);
+
+            assertThat(enderecoMudou).isTrue();
+            assertThat(propriedade.getGeoSituacao()).isEqualTo(GeoSituacao.PENDENTE);
+            assertThat(propriedade.getGeoTentativas()).isZero();
+            assertThat(propriedade.getLatitude()).isNull();
+            assertThat(propriedade.getLongitude()).isNull();
+        }
+
+        @Test
+        @DisplayName("registrarTentativaFalhaGeo soma tentativa e mantém PENDENTE abaixo do teto")
+        void registrarTentativaFalhaGeoMantemPendenteAbaixoDoTeto() {
+            Propriedade propriedade = PropriedadeTestBuilder.umaPropriedade().build();
+
+            propriedade.registrarTentativaFalhaGeo((short) 5);
+
+            assertThat(propriedade.getGeoTentativas()).isEqualTo((short) 1);
+            assertThat(propriedade.getGeoSituacao()).isEqualTo(GeoSituacao.PENDENTE);
+        }
+
+        @Test
+        @DisplayName("registrarTentativaFalhaGeo marca MANUAL ao atingir o teto")
+        void registrarTentativaFalhaGeoMarcaManualNoTeto() {
+            Propriedade propriedade = PropriedadeTestBuilder.umaPropriedade().build();
+
+            propriedade.registrarTentativaFalhaGeo((short) 1);
+
+            assertThat(propriedade.getGeoTentativas()).isEqualTo((short) 1);
+            assertThat(propriedade.getGeoSituacao()).isEqualTo(GeoSituacao.MANUAL);
+        }
+    }
 }
