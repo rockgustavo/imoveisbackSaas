@@ -88,12 +88,19 @@ br.com.rockgustavo.imobiliaria/
 │   ├── application/               casos de uso, @PreAuthorize
 │   └── infra/                     repositório JPA (escrita) + JdbcClient (leitura)
 │
-└── pessoa/                      módulo de domínio
-    ├── PessoaFacade.java           único ponto público do módulo
+├── pessoa/                      módulo de domínio
+│   ├── PessoaFacade.java           único ponto público do módulo
+│   ├── api/                        controller + DTO
+│   ├── domain/                     entidade, enums, invariantes (Java puro)
+│   ├── application/                casos de uso, @PreAuthorize
+│   └── infra/                      repositório JPA (escrita), JdbcClient (leitura), adaptador Keycloak (ADR-07)
+│
+└── propriedade/                 módulo de domínio
+    ├── PropriedadeFacade.java      único ponto público do módulo — ainda sem método: nenhum outro módulo consome ainda
     ├── api/                        controller + DTO
-    ├── domain/                     entidade, enums, invariantes (Java puro)
-    ├── application/                casos de uso, @PreAuthorize
-    └── infra/                      repositório JPA (escrita), JdbcClient (leitura), adaptador Keycloak (ADR-07)
+    ├── domain/                     Propriedade, Endereco (@Embeddable), máquina de estados de situação
+    ├── application/                casos de uso, @PreAuthorize, job de reconciliação (ADR-14)
+    └── infra/                      repositório JPA (escrita), JdbcClient (leitura)
 ```
 
 | Regra de fronteira | Por quê |
@@ -157,7 +164,7 @@ Erro sempre em `ProblemDetail` (RFC 7807), sem stacktrace, nome de classe ou SQL
 
 ## Modelo de dados
 
-Escopo atual (Épicos 00–01). Dicionário completo, incluindo o que os próximos épicos adicionam: [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
+Escopo atual (Épicos 00–03). Dicionário completo, incluindo o que os próximos épicos adicionam: [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
 
 ```mermaid
 erDiagram
@@ -196,9 +203,24 @@ erDiagram
         varchar papel "PROPRIETARIO, USUARIO, ADMINISTRADOR — acumuláveis"
     }
 
+    propriedade {
+        uuid id PK
+        uuid tenant_id FK
+        uuid proprietario_id "FK para pessoa.id, cross-módulo por UUID"
+        varchar tipo "APARTAMENTO, CASA, TERRENO, COMERCIAL"
+        numeric valor_referencia "preço de mercado, distinto do valor pedido por agenciamento"
+        varchar situacao "DISPONIVEL, AGENCIADA, RESERVADA, VENDIDA, RETIRADA"
+        varchar cep "endereço inteiro é snapshot @Embeddable, não @ManyToOne"
+        boolean endereco_validado "false quando o CEP não foi encontrado"
+        numeric latitude "nulo até o Épico 04 geocodificar"
+        varchar geo_situacao "PENDENTE, CONCLUIDA, MANUAL — default PENDENTE"
+    }
+
     imobiliaria ||--|| imobiliaria_parametro : "1 linha de parâmetros por tenant"
     imobiliaria ||--o{ pessoa : "tenant"
+    imobiliaria ||--o{ propriedade : "tenant"
     pessoa ||--o{ pessoa_papel : "papéis acumuláveis"
+    pessoa ||--o{ propriedade : "proprietário — por UUID, sem FK JPA cruzando módulo"
 ```
 
 Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omitidos acima, exceto `pessoa_papel`, que só tem `criado_em`/`criado_por` — vínculo é criado ou removido, nunca editado). `imobiliaria` não tem `tenant_id` — ela **é** o tenant.
@@ -222,6 +244,14 @@ Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omiti
 | POST | `/api/v1/pessoas/{id}/papeis` | `ADMINISTRADOR` | Atribui papel — provisiona credencial no Keycloak quando `USUARIO`/`ADMINISTRADOR` |
 | DELETE | `/api/v1/pessoas/{id}/papeis/{papel}` | `ADMINISTRADOR` | Remove papel — rejeita remover o último `ADMINISTRADOR` ativo |
 | POST | `/api/v1/pessoas/{id}/inativacao` | `ADMINISTRADOR` | Inativa pessoa — nunca exclusão física |
+| POST | `/api/v1/propriedades` | `USUARIO`, `ADMINISTRADOR` | Cadastra propriedade — proprietário precisa ter papel `PROPRIETARIO` e estar ativo |
+| GET | `/api/v1/propriedades` | `USUARIO`, `ADMINISTRADOR` | Lista propriedades do tenant — paginado, filtrável por situação/proprietário/localidade/UF/faixa de valor |
+| GET | `/api/v1/propriedades/{id}` | `USUARIO`, `ADMINISTRADOR` | Detalha uma propriedade |
+| PUT | `/api/v1/propriedades/{id}` | `USUARIO`, `ADMINISTRADOR` | Atualiza dados cadastrais — troca de proprietário rejeitada com agenciamento vigente |
+| POST | `/api/v1/propriedades/{id}/retirada` | `USUARIO`, `ADMINISTRADOR` | `DISPONIVEL → RETIRADA`, terminal |
+| POST | `/api/v1/propriedades/{id}/reserva` | `USUARIO`, `ADMINISTRADOR` | `AGENCIADA → RESERVADA` |
+| DELETE | `/api/v1/propriedades/{id}/reserva` | `USUARIO`, `ADMINISTRADOR` | Desfaz a reserva — `RESERVADA → AGENCIADA` |
+| POST | `/api/v1/propriedades/{id}/venda` | `USUARIO`, `ADMINISTRADOR` | `RESERVADA → VENDIDA`, terminal — marcação manual, sem dado financeiro (Épico 10) |
 
 Contrato completo em [`docs/api/openapi.json`](docs/api/openapi.json) — gerado e versionado a cada `mvn verify`, então mudança de contrato aparece como diff no PR, não como surpresa em produção.
 
@@ -240,11 +270,15 @@ Banco de teste é **sempre Testcontainers com PostgreSQL real, nunca H2**: com `
 
 JaCoCo tem piso alto em `*/domain/**`. Meta de cobertura global fica de fora de propósito — dilui e passa sem testar a invariante que importa.
 
+**Matriz de transição exaustiva.** `SituacaoPropriedade` tem 5 estados; o teste parametrizado cobre as 25 combinações (5×5), não uma amostra — foi assim que a RN-03-06 pegou um bug real: `desfazerReserva()` chamava a transição genérica para `AGENCIADA`, mas `AGENCIADA` também é alcançável a partir de `DISPONIVEL` (via `contrato`, Épico 06), então "desfazer reserva" sem nunca ter reservado passava. Corrigido com uma guarda específica no método nomeado — o teste exaustivo por trás de `SituacaoPropriedade.podeTransicionarPara` não pegou porque o bug era de *qual* método usar, não da tabela em si; quem pegou foi o teste de API tentando o caminho inválido de ponta a ponta.
+
+**Uma lacuna de cobertura, documentada em vez de escondida.** `reserva`, desfazer reserva e `venda` só têm gatilho a partir de `AGENCIADA`/`RESERVADA` — estados que, neste épico, só o módulo `contrato` (Épico 06) alcança. A API de propriedade sozinha só chega em `RETIRADA`. Os testes de API desses três endpoints comprovam a rejeição corretamente (chamando a partir de `DISPONIVEL`, onde a transição é mesmo inválida); o caminho de sucesso é coberto no nível de domínio (`PropriedadeTest`), não de ponta a ponta via HTTP — isso só fecha quando `contrato` existir.
+
 ---
 
 ## Decisões técnicas
 
-Registro completo (11 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
+Registro completo (14 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
 
 | Decisão | Motivação |
 |---|---|
@@ -255,6 +289,8 @@ Registro completo (11 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Sem mensageria/broker | Eventos do Modulith cobrem o assíncrono do MVP sem introduzir infra que precisaria ser operada |
 | Adaptador Keycloak com `RestClient`, sem SDK oficial | `keycloak-admin-client` traz RESTEasy como transitiva — risco real de conflito com o Tomcat embarcado do Spring, por duas chamadas HTTP simples |
 | `AcessoPort` declarado em `shared`, implementado em `pessoa` | O interceptor de revogação de acesso (RN-02-04) mora em `shared` e roda pra toda rota, mas quem sabe se uma pessoa está ativa é o módulo `pessoa` — e `shared` não pode importar módulo de domínio (`CLAUDE.md` §3). A interface inverte a dependência: `shared` pergunta, `pessoa` responde |
+| Endereço da propriedade recebido pronto, sem CEP client no Épico 03 | `GET /ceps/{cep}` só existe no Épico 04 — posterior na sequência de ondas. `POST /propriedades` recebe o endereço já resolvido por quem chamou, com `enderecoValidado` explícito (ADR-13) |
+| Job de reconciliação de RN-03-09 antecipado como stub | `contrato`/`agenciamento` só existem no Épico 06 — não há, ainda, contra o que reconciliar. `@Scheduled` diário já existe e roda; a lógica de comparação chega junto do módulo `contrato` (ADR-14) |
 
 ---
 
@@ -267,7 +303,7 @@ Construído por épicos, cada um fechado com teste e documentação antes do pr�
 | 00 — Fundação | Tenant, parâmetros, autenticação | ✅ Implementado |
 | 01 — Pessoas e papéis | Módulo `pessoa`, provisionamento de credencial via Keycloak Admin API | ✅ Implementado |
 | 02 — Acesso e autorização | Autorização por papel além do CRUD básico, revogação imediata de acesso | ✅ Implementado |
-| 03 — Propriedades | Módulo `propriedade` | Planejado |
+| 03 — Propriedades | Módulo `propriedade`, endereço snapshot, máquina de estados | ✅ Implementado |
 | 04 — Geolocalização | Cache de CEP, geocodificação | Planejado |
 | 05 — Orçamentos | Módulo `orcamento` | Planejado |
 | 06 — Contratos | Módulo `contrato`, exclusividade de agenciamento | Planejado |

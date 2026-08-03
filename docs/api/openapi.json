@@ -61,11 +61,76 @@
         }
       }
     },
+    "/api/v1/propriedades/{id}" : {
+      "get" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Detalha uma propriedade",
+        "operationId" : "buscar_2",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "Propriedade nÃ£o encontrada, ou de outro tenant (PROPRIEDADE_NAO_ENCONTRADA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropriedadeResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Atualiza dados cadastrais da propriedade",
+        "description" : "RN-03-07: troca de proprietÃ¡rio rejeitada com agenciamento vigente",
+        "operationId" : "atualizar_1",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AtualizarPropriedadeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "422" : {
+            "description" : "ProprietÃ¡rio invÃ¡lido, ou agenciamento vigente bloqueia a troca (PROPRIEDADE_PROPRIETARIO_INVALIDO, PROPRIEDADE_COM_AGENCIAMENTO_VIGENTE)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropriedadeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/pessoas/{id}" : {
       "get" : {
         "tags" : [ "pessoa" ],
         "summary" : "Detalha uma pessoa",
-        "operationId" : "buscar_2",
+        "operationId" : "buscar_3",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -91,7 +156,7 @@
       "put" : {
         "tags" : [ "pessoa" ],
         "summary" : "Atualiza dados cadastrais da pessoa",
-        "operationId" : "atualizar_1",
+        "operationId" : "atualizar_2",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -125,12 +190,222 @@
         }
       }
     },
+    "/api/v1/propriedades" : {
+      "get" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Lista propriedades do tenant",
+        "description" : "RN-03-05",
+        "operationId" : "listar",
+        "parameters" : [ {
+          "name" : "situacao",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "DISPONIVEL", "AGENCIADA", "RESERVADA", "VENDIDA", "RETIRADA" ]
+          }
+        }, {
+          "name" : "proprietarioId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "localidade",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "uf",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "valorMin",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "number"
+          }
+        }, {
+          "name" : "valorMax",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "number"
+          }
+        }, {
+          "name" : "pageable",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/Pageable"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponsePropriedadeResumoResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Cadastra uma propriedade",
+        "description" : "RN-03-01..05",
+        "operationId" : "criar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CriarPropriedadeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "422" : {
+            "description" : "ProprietÃ¡rio invÃ¡lido â precisa estar ativo e ter papel PROPRIETARIO (PROPRIEDADE_PROPRIETARIO_INVALIDO)"
+          },
+          "201" : {
+            "description" : "Propriedade criada"
+          }
+        }
+      }
+    },
+    "/api/v1/propriedades/{id}/venda" : {
+      "post" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Marca a propriedade como vendida",
+        "description" : "RN-03-06/11 â marcaÃ§Ã£o manual, sem dado financeiro",
+        "operationId" : "vender",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropriedadeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/propriedades/{id}/retirada" : {
+      "post" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Retira a propriedade de disponibilidade",
+        "description" : "RN-03-06",
+        "operationId" : "retirar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropriedadeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/propriedades/{id}/reserva" : {
+      "post" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Reserva a propriedade agenciada",
+        "description" : "RN-03-06",
+        "operationId" : "reservar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropriedadeResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Desfaz a reserva, devolvendo a propriedade para agenciada",
+        "description" : "RN-03-06",
+        "operationId" : "desfazerReserva",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropriedadeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plataforma/imobiliarias" : {
       "post" : {
         "tags" : [ "imobiliaria" ],
         "summary" : "Provisiona uma nova imobiliÃ¡ria (tenant)",
         "description" : "RN-00-06/07/08",
-        "operationId" : "criar",
+        "operationId" : "criar_1",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -159,7 +434,7 @@
         "tags" : [ "pessoa" ],
         "summary" : "Lista pessoas do tenant",
         "description" : "RN-01-08/09",
-        "operationId" : "listar",
+        "operationId" : "listar_1",
         "parameters" : [ {
           "name" : "documento",
           "in" : "query",
@@ -215,7 +490,7 @@
         "tags" : [ "pessoa" ],
         "summary" : "Cadastra uma pessoa",
         "description" : "RN-01-01/02",
-        "operationId" : "criar_1",
+        "operationId" : "criar_2",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -469,6 +744,137 @@
           }
         }
       },
+      "AtualizarPropriedadeRequest" : {
+        "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ],
+        "type" : "object",
+        "properties" : {
+          "proprietarioId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tipo" : {
+            "type" : "string",
+            "enum" : [ "APARTAMENTO", "CASA", "TERRENO", "COMERCIAL" ]
+          },
+          "areaPrivativa" : {
+            "type" : "number"
+          },
+          "quartos" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "vagas" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "valorReferencia" : {
+            "type" : "number"
+          },
+          "cep" : {
+            "type" : "string",
+            "description" : "SÃ³ dÃ­gitos",
+            "example" : "01310100"
+          },
+          "logradouro" : {
+            "type" : "string"
+          },
+          "numero" : {
+            "type" : "string"
+          },
+          "complemento" : {
+            "type" : "string"
+          },
+          "bairro" : {
+            "type" : "string"
+          },
+          "localidade" : {
+            "type" : "string"
+          },
+          "uf" : {
+            "maxLength" : 2,
+            "minLength" : 2,
+            "type" : "string",
+            "example" : "SP"
+          },
+          "enderecoValidado" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "PropriedadeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "proprietarioId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tipo" : {
+            "type" : "string"
+          },
+          "areaPrivativa" : {
+            "type" : "number"
+          },
+          "quartos" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "vagas" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "valorReferencia" : {
+            "type" : "string"
+          },
+          "situacao" : {
+            "type" : "string"
+          },
+          "cep" : {
+            "type" : "string"
+          },
+          "logradouro" : {
+            "type" : "string"
+          },
+          "numero" : {
+            "type" : "string"
+          },
+          "complemento" : {
+            "type" : "string"
+          },
+          "bairro" : {
+            "type" : "string"
+          },
+          "localidade" : {
+            "type" : "string"
+          },
+          "uf" : {
+            "type" : "string"
+          },
+          "enderecoValidado" : {
+            "type" : "boolean"
+          },
+          "latitude" : {
+            "type" : "number"
+          },
+          "longitude" : {
+            "type" : "number"
+          },
+          "geoSituacao" : {
+            "type" : "string"
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "alteradoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "AtualizarPessoaRequest" : {
         "required" : [ "nome" ],
         "type" : "object",
@@ -519,6 +925,70 @@
           "alteradoEm" : {
             "type" : "string",
             "format" : "date-time"
+          }
+        }
+      },
+      "CriarPropriedadeRequest" : {
+        "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ],
+        "type" : "object",
+        "properties" : {
+          "proprietarioId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tipo" : {
+            "type" : "string",
+            "enum" : [ "APARTAMENTO", "CASA", "TERRENO", "COMERCIAL" ]
+          },
+          "areaPrivativa" : {
+            "type" : "number",
+            "example" : 85.5
+          },
+          "quartos" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "vagas" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "valorReferencia" : {
+            "type" : "number",
+            "example" : 450000.0
+          },
+          "cep" : {
+            "type" : "string",
+            "description" : "SÃ³ dÃ­gitos",
+            "example" : "01310100"
+          },
+          "logradouro" : {
+            "type" : "string",
+            "example" : "Av. Paulista"
+          },
+          "numero" : {
+            "type" : "string",
+            "example" : "1000"
+          },
+          "complemento" : {
+            "type" : "string"
+          },
+          "bairro" : {
+            "type" : "string",
+            "example" : "Bela Vista"
+          },
+          "localidade" : {
+            "type" : "string",
+            "example" : "SÃ£o Paulo"
+          },
+          "uf" : {
+            "maxLength" : 2,
+            "minLength" : 2,
+            "type" : "string",
+            "example" : "SP"
+          },
+          "enderecoValidado" : {
+            "type" : "boolean",
+            "description" : "false quando o CEP nÃ£o foi encontrado na consulta feita por quem chamou"
           }
         }
       },
@@ -611,6 +1081,80 @@
             "items" : {
               "type" : "string"
             }
+          }
+        }
+      },
+      "PageResponsePropriedadeResumoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PropriedadeResumoResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "PropriedadeResumoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "proprietarioId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tipo" : {
+            "type" : "string"
+          },
+          "valorReferencia" : {
+            "type" : "string"
+          },
+          "situacao" : {
+            "type" : "string"
+          },
+          "logradouro" : {
+            "type" : "string"
+          },
+          "bairro" : {
+            "type" : "string"
+          },
+          "localidade" : {
+            "type" : "string"
+          },
+          "uf" : {
+            "type" : "string"
+          },
+          "latitude" : {
+            "type" : "number"
+          },
+          "longitude" : {
+            "type" : "number"
+          },
+          "geoSituacao" : {
+            "type" : "string"
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
           }
         }
       },
