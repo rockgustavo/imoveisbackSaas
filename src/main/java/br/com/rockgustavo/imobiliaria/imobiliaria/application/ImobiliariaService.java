@@ -25,6 +25,7 @@ public class ImobiliariaService {
         this.parametroRepository = parametroRepository;
     }
 
+    @PreAuthorize("hasRole('PLATAFORMA_ADMIN')")
     @Transactional
     public UUID criar(CriarImobiliariaComando comando) {
         String cnpjLimpo = comando.cnpj() == null ? null : comando.cnpj().replaceAll("\\D", "");

@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,7 +27,6 @@ public class ImobiliariaController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('PLATAFORMA_ADMIN')")
     @Operation(summary = "Provisiona uma nova imobiliária (tenant)", description = "RN-00-06/07/08")
     @ApiResponse(responseCode = "201", description = "Imobiliária criada")
     @ApiResponse(responseCode = "400", description = "Payload inválido — CNPJ ou slug mal formado (IMOBILIARIA_CNPJ_INVALIDO, IMOBILIARIA_SLUG_INVALIDO)")

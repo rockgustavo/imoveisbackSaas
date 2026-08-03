@@ -1,13 +1,12 @@
 package br.com.rockgustavo.imobiliaria.imobiliaria;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
-import br.com.rockgustavo.imobiliaria.imobiliaria.application.CriarImobiliariaComando;
-import br.com.rockgustavo.imobiliaria.imobiliaria.application.ImobiliariaService;
 import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -15,6 +14,7 @@ import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,9 +22,6 @@ class TenantApiIT extends AbstractIntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
-
-    @Autowired
-    ImobiliariaService imobiliariaService;
 
     @Nested
     @DisplayName("RN-00-06: identidade do tenant corrente")
@@ -70,10 +67,18 @@ class TenantApiIT extends AbstractIntegrationTest {
         }
     }
 
-    private UUID criarTenant(String razaoSocial) {
+    private UUID criarTenant(String razaoSocial) throws Exception {
         String slug = "corretora-" + UUID.randomUUID();
-        return imobiliariaService.criar(
-                new CriarImobiliariaComando(razaoSocial, CnpjTestFixture.novoCnpjValido(), slug));
+        String corpo = """
+                {"razaoSocial":"%s","cnpj":"%s","slug":"%s"}
+                """.formatted(razaoSocial, CnpjTestFixture.novoCnpjValido(), slug);
+        String location = mockMvc.perform(post("/api/v1/plataforma/imobiliarias")
+                        .with(jwt().authorities(() -> "ROLE_PLATAFORMA_ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
     }
 
     private static RequestPostProcessor usuarioDoTenant(UUID tenantId) {

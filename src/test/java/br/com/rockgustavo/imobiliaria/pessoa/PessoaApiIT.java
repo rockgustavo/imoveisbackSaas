@@ -1,6 +1,7 @@
 package br.com.rockgustavo.imobiliaria.pessoa;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
+import br.com.rockgustavo.imobiliaria.pessoa.infra.TestKeycloakAdminConfig;
 import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import br.com.rockgustavo.imobiliaria.shared.validation.CpfTestFixture;
 import org.junit.jupiter.api.DisplayName;
@@ -100,6 +101,61 @@ class PessoaApiIT extends AbstractIntegrationTest {
             mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.classificacao").value("LEAD"));
+        }
+    }
+
+    @Nested
+    @DisplayName("RN-02-03: usuário não altera os próprios papéis")
+    class AutoAlteracaoDePapel {
+
+        @Test
+        @DisplayName("administrador não pode atribuir papel a si mesmo")
+        void administradorNaoPodeAtribuirPapelASiMesmo() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Fulano de Tal");
+            atribuirPapel(tenantId, pessoaId, "ADMINISTRADOR", "fulano@exemplo.com").andExpect(status().isOk());
+            String subject = TestKeycloakAdminConfig.subjectIdpDeterministico("fulano@exemplo.com", "Fulano de Tal", tenantId);
+
+            mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", pessoaId)
+                            .with(comoPessoa(tenantId, subject))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"papel":"USUARIO","email":"fulano@exemplo.com"}
+                                    """))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.codigo").value("PESSOA_PAPEL_PROPRIO_IMUTAVEL"));
+        }
+
+        @Test
+        @DisplayName("administrador não pode remover o próprio papel")
+        void administradorNaoPodeRemoverOProprioPapel() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Fulano de Tal");
+            atribuirPapel(tenantId, pessoaId, "ADMINISTRADOR", "fulano@exemplo.com").andExpect(status().isOk());
+            String subject = TestKeycloakAdminConfig.subjectIdpDeterministico("fulano@exemplo.com", "Fulano de Tal", tenantId);
+
+            mockMvc.perform(delete("/api/v1/pessoas/{id}/papeis/ADMINISTRADOR", pessoaId)
+                            .with(comoPessoa(tenantId, subject)))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.codigo").value("PESSOA_PAPEL_PROPRIO_IMUTAVEL"));
+        }
+
+        @Test
+        @DisplayName("administrador pode atribuir papel a outra pessoa")
+        void administradorPodeAtribuirPapelAOutraPessoa() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID autorId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Autora");
+            atribuirPapel(tenantId, autorId, "ADMINISTRADOR", "autora@exemplo.com").andExpect(status().isOk());
+            String subjectAutora = TestKeycloakAdminConfig.subjectIdpDeterministico("autora@exemplo.com", "Autora", tenantId);
+            UUID alvoId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Alvo");
+
+            mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", alvoId)
+                            .with(comoPessoa(tenantId, subjectAutora))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"papel":"PROPRIETARIO"}
+                                    """))
+                    .andExpect(status().isOk());
         }
     }
 
@@ -416,6 +472,12 @@ class PessoaApiIT extends AbstractIntegrationTest {
     private static RequestPostProcessor administradorDoTenant(UUID tenantId) {
         return jwt()
                 .jwt(builder -> builder.claim("tenant_id", tenantId.toString()))
+                .authorities(() -> "ROLE_ADMINISTRADOR");
+    }
+
+    private static RequestPostProcessor comoPessoa(UUID tenantId, String subjectIdp) {
+        return jwt()
+                .jwt(builder -> builder.subject(subjectIdp).claim("tenant_id", tenantId.toString()))
                 .authorities(() -> "ROLE_ADMINISTRADOR");
     }
 }

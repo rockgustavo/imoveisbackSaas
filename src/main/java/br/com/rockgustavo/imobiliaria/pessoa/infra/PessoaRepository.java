@@ -19,4 +19,6 @@ public interface PessoaRepository extends JpaRepository<Pessoa, UUID> {
 
     @Query("select p from Pessoa p where p.id = :id")
     Optional<Pessoa> buscarPorId(@Param("id") UUID id);
+
+    Optional<Pessoa> findBySubjectIdp(String subjectIdp);
 }

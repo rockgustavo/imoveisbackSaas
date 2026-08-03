@@ -1,8 +1,6 @@
 package br.com.rockgustavo.imobiliaria.imobiliaria;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
-import br.com.rockgustavo.imobiliaria.imobiliaria.application.CriarImobiliariaComando;
-import br.com.rockgustavo.imobiliaria.imobiliaria.application.ImobiliariaService;
 import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,6 +14,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -24,9 +23,6 @@ class ParametrosTenantApiIT extends AbstractIntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
-
-    @Autowired
-    ImobiliariaService imobiliariaService;
 
     @Nested
     @DisplayName("RN-00-09/10: parâmetros do tenant")
@@ -81,9 +77,62 @@ class ParametrosTenantApiIT extends AbstractIntegrationTest {
         }
     }
 
-    private UUID criarTenant() {
+    @Nested
+    @DisplayName("Autorização e autenticação")
+    class Autorizacao {
+
+        @Test
+        @DisplayName("GET sem token retorna 401")
+        void buscarSemTokenRetorna401() throws Exception {
+            mockMvc.perform(get("/api/v1/tenant/parametros"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("GET sem papel ADMINISTRADOR retorna 403")
+        void buscarSemPapelRetorna403() throws Exception {
+            mockMvc.perform(get("/api/v1/tenant/parametros").with(SecurityMockMvcRequestPostProcessors.jwt()))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("PUT sem token retorna 401")
+        void atualizarSemTokenRetorna401() throws Exception {
+            mockMvc.perform(put("/api/v1/tenant/parametros")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"comissaoPercentualTeto":9.50,"orcamentoValidadeDiasPadrao":10,
+                                     "geocodificacaoTentativasMax":3,"cepCacheJanelaDias":60,"fusoHorario":"America/Fortaleza"}
+                                    """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("PUT sem papel ADMINISTRADOR retorna 403")
+        void atualizarSemPapelRetorna403() throws Exception {
+            mockMvc.perform(put("/api/v1/tenant/parametros")
+                            .with(SecurityMockMvcRequestPostProcessors.jwt())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"comissaoPercentualTeto":9.50,"orcamentoValidadeDiasPadrao":10,
+                                     "geocodificacaoTentativasMax":3,"cepCacheJanelaDias":60,"fusoHorario":"America/Fortaleza"}
+                                    """))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    private UUID criarTenant() throws Exception {
         String slug = "corretora-" + UUID.randomUUID();
-        return imobiliariaService.criar(new CriarImobiliariaComando("Corretora Teste", CnpjTestFixture.novoCnpjValido(), slug));
+        String corpo = """
+                {"razaoSocial":"Corretora Teste","cnpj":"%s","slug":"%s"}
+                """.formatted(CnpjTestFixture.novoCnpjValido(), slug);
+        String location = mockMvc.perform(post("/api/v1/plataforma/imobiliarias")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().authorities(() -> "ROLE_PLATAFORMA_ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
     }
 
     private static RequestPostProcessor administradorDoTenant(UUID tenantId) {

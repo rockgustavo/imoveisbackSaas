@@ -10,11 +10,14 @@ import br.com.rockgustavo.imobiliaria.pessoa.domain.PapelNaoAtribuidoException;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.Pessoa;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.PessoaNaoEncontradaException;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.PessoaPapel;
+import br.com.rockgustavo.imobiliaria.pessoa.domain.PessoaPapelProprioImutavelException;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.UltimoAdministradorException;
 import br.com.rockgustavo.imobiliaria.pessoa.infra.PessoaPapelRepository;
 import br.com.rockgustavo.imobiliaria.pessoa.infra.PessoaQueryRepository;
 import br.com.rockgustavo.imobiliaria.pessoa.infra.PessoaRepository;
 import br.com.rockgustavo.imobiliaria.pessoa.infra.PessoaResumoView;
+import br.com.rockgustavo.imobiliaria.shared.security.AcessoAtivoCache;
+import br.com.rockgustavo.imobiliaria.shared.security.AutenticacaoAtual;
 import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,13 +35,16 @@ public class PessoaService {
     private final PessoaPapelRepository papelRepository;
     private final PessoaQueryRepository queryRepository;
     private final KeycloakAdminPort keycloakAdminPort;
+    private final AcessoAtivoCache acessoAtivoCache;
 
     public PessoaService(PessoaRepository pessoaRepository, PessoaPapelRepository papelRepository,
-                          PessoaQueryRepository queryRepository, KeycloakAdminPort keycloakAdminPort) {
+                          PessoaQueryRepository queryRepository, KeycloakAdminPort keycloakAdminPort,
+                          AcessoAtivoCache acessoAtivoCache) {
         this.pessoaRepository = pessoaRepository;
         this.papelRepository = papelRepository;
         this.queryRepository = queryRepository;
         this.keycloakAdminPort = keycloakAdminPort;
+        this.acessoAtivoCache = acessoAtivoCache;
     }
 
     @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -78,6 +84,7 @@ public class PessoaService {
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Transactional
     public PessoaDetalhe atribuirPapel(AtribuirPapelComando comando) {
+        garantirNaoAutoAlteracaoDePapel(comando.pessoaId());
         Pessoa pessoa = buscarEntidade(comando.pessoaId());
         if (papelRepository.existsByPessoaIdAndPapel(pessoa.getId(), comando.papel())) {
             throw new PapelJaAtribuidoException(comando.papel());
@@ -93,7 +100,7 @@ public class PessoaService {
                 pessoa.atualizar(pessoa.getNome(), email);
             }
             if (pessoa.getSubjectIdp() == null) {
-                String subjectIdp = keycloakAdminPort.provisionar(email, pessoa.getNome());
+                String subjectIdp = keycloakAdminPort.provisionar(email, pessoa.getNome(), TenantContext.obter());
                 pessoa.provisionarCredencial(subjectIdp);
             }
         }
@@ -105,6 +112,7 @@ public class PessoaService {
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Transactional
     public void removerPapel(UUID pessoaId, Papel papel) {
+        garantirNaoAutoAlteracaoDePapel(pessoaId);
         Pessoa pessoa = buscarEntidade(pessoaId);
         PessoaPapel vinculo = papelRepository.findByPessoaIdAndPapel(pessoa.getId(), papel)
                 .orElseThrow(() -> new PapelNaoAtribuidoException(papel));
@@ -122,6 +130,7 @@ public class PessoaService {
             garantirNaoUltimoAdministrador();
         }
         pessoa.inativar();
+        acessoAtivoCache.invalidar(pessoa.getSubjectIdp());
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
@@ -131,6 +140,16 @@ public class PessoaService {
             return Page.empty(pageable);
         }
         return queryRepository.listar(TenantContext.obter(), filtro, pageable);
+    }
+
+    private void garantirNaoAutoAlteracaoDePapel(UUID pessoaId) {
+        boolean autoAlteracao = AutenticacaoAtual.subjectIdp()
+                .flatMap(pessoaRepository::findBySubjectIdp)
+                .map(atual -> atual.getId().equals(pessoaId))
+                .orElse(false);
+        if (autoAlteracao) {
+            throw new PessoaPapelProprioImutavelException();
+        }
     }
 
     private void garantirNaoUltimoAdministrador() {

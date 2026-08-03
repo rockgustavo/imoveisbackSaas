@@ -13,6 +13,10 @@ public class TestKeycloakAdminConfig {
     @Bean
     @Primary
     public KeycloakAdminPort keycloakAdminPort() {
-        return (email, nome) -> "fake-subject-" + UUID.randomUUID();
+        return TestKeycloakAdminConfig::subjectIdpDeterministico;
+    }
+
+    public static String subjectIdpDeterministico(String email, String nome, UUID tenantId) {
+        return "fake-subject-" + tenantId + "-" + email;
     }
 }

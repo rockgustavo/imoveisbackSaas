@@ -19,6 +19,8 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
@@ -44,14 +46,17 @@ public class KeycloakAdminClient implements KeycloakAdminPort {
     }
 
     @Override
-    public String provisionar(String email, String nome) {
+    public String provisionar(String email, String nome, UUID tenantId) {
         String token = obterToken(email);
         try {
+            NovoUsuarioKeycloak novoUsuario = new NovoUsuarioKeycloak(
+                    email, email, primeiroNome(nome), sobrenome(nome), true, true,
+                    Map.of("tenant_id", List.of(tenantId.toString())));
             ResponseEntity<Void> resposta = restClient.post()
                     .uri("/admin/realms/{realm}/users", realm)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(new NovoUsuarioKeycloak(email, email, primeiroNome(nome), sobrenome(nome), true, true))
+                    .body(novoUsuario)
                     .retrieve()
                     .toBodilessEntity();
             return extrairId(resposta, email);
@@ -129,7 +134,8 @@ public class KeycloakAdminClient implements KeycloakAdminPort {
     }
 
     private record NovoUsuarioKeycloak(
-            String username, String email, String firstName, String lastName, boolean enabled, boolean emailVerified) {
+            String username, String email, String firstName, String lastName, boolean enabled, boolean emailVerified,
+            Map<String, List<String>> attributes) {
     }
 
     private record TokenResponse(

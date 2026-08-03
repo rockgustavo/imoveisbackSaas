@@ -4,6 +4,7 @@ import br.com.rockgustavo.imobiliaria.imobiliaria.domain.ImobiliariaParametro;
 import br.com.rockgustavo.imobiliaria.imobiliaria.domain.TenantSemParametroException;
 import br.com.rockgustavo.imobiliaria.imobiliaria.infra.ImobiliariaParametroRepository;
 import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,11 +19,13 @@ public class ImobiliariaParametroService {
         this.repository = repository;
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Transactional(readOnly = true)
     public ParametrosTenant buscarDoTenantAtual() {
         return paraView(buscarEntidadeDoTenantAtual());
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Transactional
     public ParametrosTenant atualizar(AtualizarParametrosComando comando) {
         ImobiliariaParametro parametro = buscarEntidadeDoTenantAtual();

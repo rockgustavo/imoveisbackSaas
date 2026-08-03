@@ -149,6 +149,10 @@ Erro sempre em `ProblemDetail` (RFC 7807), sem stacktrace, nome de classe ou SQL
 
 **Uma URL para validar, outra para buscar a chave.** O Keycloak se identifica como `localhost:8081` (o hostname que o navegador usa, e que vai no `iss` do token), mas o backend em container não alcança `localhost:8081` — ali `localhost` é ele mesmo. Por isso a configuração separa `issuer-uri` (`localhost:8081`, precisa bater exatamente com o `iss`) de `jwk-set-uri` (`keycloak:8081`, rede interna do compose). Sem essa separação, ou o navegador não consegue logar, ou o backend não consegue validar — e o hosts file deixaria de ser opcional.
 
+**Revogação imediata de acesso (RN-02-04, ADR-08).** O backend não controla o ciclo de vida do JWT — quem inativa uma pessoa não pode expirar o token dela. Por isso todo request autenticado passa por um interceptor que confere `pessoa.ativo`, via cache de 5s invalidado explicitamente no momento da inativação; sem essa invalidação explícita, a revogação dependeria só do TTL do cache (ou da expiração do token, configurada curta no realm como rede de segurança, não como mecanismo principal). A checagem cruza módulo sem o `shared` conhecer o `pessoa`: `shared/security` declara `AcessoPort` (uma pergunta — "esse subject está ativo?"), `PessoaFacade` responde. Token cujo `sub` não corresponde a nenhuma pessoa (`PLATAFORMA_ADMIN`, que age antes de qualquer tenant existir) passa direto.
+
+**Um usuário não altera os próprios papéis (RN-02-03).** Atribuir ou remover papel de si mesmo é rejeitado com `422`/`PESSOA_PAPEL_PROPRIO_IMUTAVEL`, independente de já haver outro administrador — evita o caso de alguém se autopromover ou se autorrebaixar sem um segundo administrador envolvido na decisão.
+
 ---
 
 ## Modelo de dados
@@ -250,6 +254,7 @@ Registro completo (11 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Sem MapStruct | `record` + factory method é explícito, auditável e sem reflection — suficiente neste tamanho |
 | Sem mensageria/broker | Eventos do Modulith cobrem o assíncrono do MVP sem introduzir infra que precisaria ser operada |
 | Adaptador Keycloak com `RestClient`, sem SDK oficial | `keycloak-admin-client` traz RESTEasy como transitiva — risco real de conflito com o Tomcat embarcado do Spring, por duas chamadas HTTP simples |
+| `AcessoPort` declarado em `shared`, implementado em `pessoa` | O interceptor de revogação de acesso (RN-02-04) mora em `shared` e roda pra toda rota, mas quem sabe se uma pessoa está ativa é o módulo `pessoa` — e `shared` não pode importar módulo de domínio (`CLAUDE.md` §3). A interface inverte a dependência: `shared` pergunta, `pessoa` responde |
 
 ---
 
@@ -261,7 +266,7 @@ Construído por épicos, cada um fechado com teste e documentação antes do pr�
 |---|---|---|
 | 00 — Fundação | Tenant, parâmetros, autenticação | ✅ Implementado |
 | 01 — Pessoas e papéis | Módulo `pessoa`, provisionamento de credencial via Keycloak Admin API | ✅ Implementado |
-| 02 — Acesso e autorização | Autorização por papel além do CRUD básico, revogação imediata de acesso | Planejado |
+| 02 — Acesso e autorização | Autorização por papel além do CRUD básico, revogação imediata de acesso | ✅ Implementado |
 | 03 — Propriedades | Módulo `propriedade` | Planejado |
 | 04 — Geolocalização | Cache de CEP, geocodificação | Planejado |
 | 05 — Orçamentos | Módulo `orcamento` | Planejado |
