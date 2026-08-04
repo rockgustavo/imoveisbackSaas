@@ -4,6 +4,7 @@ import br.com.rockgustavo.imobiliaria.imobiliaria.application.ImobiliariaParamet
 import br.com.rockgustavo.imobiliaria.imobiliaria.application.ParametrosTenant;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Component
@@ -25,5 +26,17 @@ public class ImobiliariaFacade {
 
     public short geocodificacaoTentativasMax(UUID tenantId) {
         return parametroService.buscarPorTenant(tenantId).geocodificacaoTentativasMax();
+    }
+
+    public int orcamentoValidadeDiasPadrao(UUID tenantId) {
+        return parametroService.buscarPorTenant(tenantId).orcamentoValidadeDiasPadrao();
+    }
+
+    public String fusoHorario(UUID tenantId) {
+        return parametroService.buscarPorTenant(tenantId).fusoHorario();
+    }
+
+    public BigDecimal comissaoPercentualTeto(UUID tenantId) {
+        return parametroService.buscarPorTenant(tenantId).comissaoPercentualTeto();
     }
 }

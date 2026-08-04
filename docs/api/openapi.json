@@ -190,6 +190,81 @@
         }
       }
     },
+    "/api/v1/orcamentos/{id}" : {
+      "get" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Detalha um orÃ§amento",
+        "operationId" : "buscar_4",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "OrÃ§amento nÃ£o encontrado, ou de outro tenant (ORCAMENTO_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Atualiza os itens de um orÃ§amento em RASCUNHO",
+        "description" : "RN-05-04",
+        "operationId" : "atualizar_3",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AtualizarOrcamentoRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Propriedade repetida entre os itens (ORCAMENTO_ITEM_DUPLICADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "OrÃ§amento fora de RASCUNHO, ou propriedade inexistente (ORCAMENTO_NAO_EDITAVEL, ORCAMENTO_PROPRIEDADE_INDISPONIVEL)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/propriedades" : {
       "get" : {
         "tags" : [ "propriedade" ],
@@ -604,6 +679,183 @@
         }
       }
     },
+    "/api/v1/orcamentos" : {
+      "get" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Lista orÃ§amentos do tenant",
+        "description" : "filtros: pessoaId, status",
+        "operationId" : "listar_2",
+        "parameters" : [ {
+          "name" : "pessoaId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "RASCUNHO", "ENVIADO", "ACEITO", "RECUSADO", "EXPIRADO" ]
+          }
+        }, {
+          "name" : "pageable",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/Pageable"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseOrcamentoResumoResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Cria um orÃ§amento em RASCUNHO",
+        "description" : "RN-05-01, RN-01-06",
+        "operationId" : "criar_3",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CriarOrcamentoRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "OrÃ§amento criado"
+          },
+          "422" : {
+            "description" : "Pessoa inativa, ou propriedade inexistente no tenant (PESSOA_INATIVA_NAO_RECEBE_ORCAMENTO, ORCAMENTO_PROPRIEDADE_INDISPONIVEL)"
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/{id}/recusa" : {
+      "post" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Registra a recusa do orÃ§amento pelo proprietÃ¡rio",
+        "description" : "RN-05-02",
+        "operationId" : "recusar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "OrÃ§amento nÃ£o estÃ¡ ENVIADO com validade vigente (ORCAMENTO_EXPIRADO_OU_RECUSADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/{id}/envio" : {
+      "post" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Envia o orÃ§amento ao proprietÃ¡rio",
+        "description" : "RN-05-03/08",
+        "operationId" : "enviar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "OrÃ§amento fora de RASCUNHO, propriedade indisponÃ­vel/de outro dono, ou comissÃ£o acima do teto (ORCAMENTO_NAO_EDITAVEL, ORCAMENTO_PROPRIEDADE_INDISPONIVEL, ORCAMENTO_COMISSAO_ACIMA_DO_TETO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/{id}/duplicacao" : {
+      "post" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Duplica o orÃ§amento em uma nova versÃ£o RASCUNHO",
+        "description" : "RN-05-07",
+        "operationId" : "duplicar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "201" : {
+            "description" : "Nova versÃ£o criada, independente do status do original"
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/{id}/aceite" : {
+      "post" : {
+        "tags" : [ "orcamento" ],
+        "summary" : "Registra a aceitaÃ§Ã£o do orÃ§amento pelo proprietÃ¡rio",
+        "description" : "RN-05-05, RN-05-07",
+        "operationId" : "aceitar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "OrÃ§amento nÃ£o estÃ¡ ENVIADO com validade vigente (ORCAMENTO_EXPIRADO_OU_RECUSADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tenant" : {
       "get" : {
         "tags" : [ "imobiliaria" ],
@@ -968,6 +1220,92 @@
           }
         }
       },
+      "AtualizarOrcamentoRequest" : {
+        "required" : [ "itens" ],
+        "type" : "object",
+        "properties" : {
+          "itens" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrcamentoItemRequest"
+            }
+          }
+        }
+      },
+      "OrcamentoItemRequest" : {
+        "required" : [ "comissaoPercentual", "propriedadeId", "valorPedido" ],
+        "type" : "object",
+        "properties" : {
+          "propriedadeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "comissaoPercentual" : {
+            "type" : "number",
+            "example" : 6.0
+          },
+          "valorPedido" : {
+            "type" : "number",
+            "example" : 450000.0
+          }
+        }
+      },
+      "OrcamentoItemResponse" : {
+        "type" : "object",
+        "properties" : {
+          "propriedadeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "comissaoPercentual" : {
+            "type" : "string"
+          },
+          "valorPedido" : {
+            "type" : "string"
+          }
+        }
+      },
+      "OrcamentoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "pessoaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "validade" : {
+            "type" : "string"
+          },
+          "origemId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "versao" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "itens" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrcamentoItemResponse"
+            }
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "alteradoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "CriarPropriedadeRequest" : {
         "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ],
         "type" : "object",
@@ -1082,6 +1420,22 @@
           },
           "email" : {
             "type" : "string"
+          }
+        }
+      },
+      "CriarOrcamentoRequest" : {
+        "required" : [ "itens", "pessoaId" ],
+        "type" : "object",
+        "properties" : {
+          "pessoaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "itens" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrcamentoItemRequest"
+            }
           }
         }
       },
@@ -1205,6 +1559,67 @@
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/PessoaResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "OrcamentoResumoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "pessoaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "validade" : {
+            "type" : "string"
+          },
+          "versao" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "quantidadeItens" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "valorTotal" : {
+            "type" : "string"
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "PageResponseOrcamentoResumoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OrcamentoResumoResponse"
             }
           },
           "page" : {
