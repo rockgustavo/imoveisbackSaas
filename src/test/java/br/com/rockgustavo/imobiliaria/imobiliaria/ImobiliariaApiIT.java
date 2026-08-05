@@ -5,9 +5,7 @@ import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -16,9 +14,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ImobiliariaApiIT extends AbstractIntegrationTest {
-
-    @Autowired
-    MockMvc mockMvc;
 
     @Nested
     @DisplayName("RN-00-06/07/08: provisionamento de imobiliária")

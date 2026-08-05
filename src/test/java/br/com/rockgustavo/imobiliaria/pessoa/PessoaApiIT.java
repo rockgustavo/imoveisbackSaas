@@ -2,20 +2,17 @@ package br.com.rockgustavo.imobiliaria.pessoa;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
 import br.com.rockgustavo.imobiliaria.pessoa.infra.TestKeycloakAdminConfig;
-import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import br.com.rockgustavo.imobiliaria.shared.validation.CpfTestFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import java.time.LocalDate;
 import java.util.UUID;
 
+import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.administradorDoTenant;
+import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.comoPessoa;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -26,9 +23,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class PessoaApiIT extends AbstractIntegrationTest {
 
-    @Autowired
-    MockMvc mockMvc;
-
     @Nested
     @DisplayName("RN-01-02: documento único por tenant")
     class DocumentoUnicoPorTenant {
@@ -36,7 +30,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("documento duplicado no mesmo tenant é rejeitado")
         void documentoDuplicadoNoMesmoTenantRejeitado() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             String cpf = CpfTestFixture.novoCpfValido();
 
             criarPessoa(tenantId, cpf, "Fulano de Tal").andExpect(status().isCreated());
@@ -49,8 +43,8 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("mesmo documento em tenants diferentes é aceito")
         void mesmoDocumentoEmTenantsDiferentesAceito() throws Exception {
-            UUID tenantA = criarTenant();
-            UUID tenantB = criarTenant();
+            UUID tenantA = fixture.criarTenant();
+            UUID tenantB = fixture.criarTenant();
             String cpf = CpfTestFixture.novoCpfValido();
 
             criarPessoa(tenantA, cpf, "Fulano de Tal").andExpect(status().isCreated());
@@ -65,7 +59,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("remover papel ADMINISTRADOR do único administrador é rejeitado")
         void removerPapelDoUnicoAdministradorRejeitado() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Admin Único");
             atribuirPapel(tenantId, pessoaId, "ADMINISTRADOR", "admin1@exemplo.com").andExpect(status().isOk());
 
@@ -78,7 +72,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("inativar o único administrador ativo é rejeitado")
         void inativarUnicoAdministradorRejeitado() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Admin Único");
             atribuirPapel(tenantId, pessoaId, "ADMINISTRADOR", "admin2@exemplo.com").andExpect(status().isOk());
 
@@ -96,7 +90,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("pessoa sem orçamento e sem contrato retorna LEAD")
         void pessoaSemOrcamentoSemContratoRetornaLead() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Fulano de Tal");
 
             mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
@@ -107,10 +101,10 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("pessoa com orçamento ENVIADO e validade futura retorna PROSPECT")
         void pessoaComOrcamentoEnviadoRetornaProspect() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId);
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk());
 
@@ -121,10 +115,10 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("pessoa com contrato ATIVO retorna CLIENTE")
         void pessoaComContratoAtivoRetornaCliente() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            criarContratoAtivoEObterId(tenantId, pessoaId, propriedadeId);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            fixture.criarContratoAtivo(tenantId, pessoaId, propriedadeId);
 
             mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
                     .andExpect(jsonPath("$.classificacao").value("CLIENTE"));
@@ -133,10 +127,10 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("pessoa cujo único contrato foi ENCERRADO retorna CLIENTE_INATIVO")
         void pessoaComContratoEncerradoRetornaClienteInativo() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID contratoId = criarContratoAtivoEObterId(tenantId, pessoaId, propriedadeId);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID contratoId = fixture.criarContratoAtivo(tenantId, pessoaId, propriedadeId);
             mockMvc.perform(post("/api/v1/contratos/{id}/encerramento", contratoId)
                             .with(administradorDoTenant(tenantId))
                             .contentType(MediaType.APPLICATION_JSON)
@@ -152,11 +146,11 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("pessoa com um contrato ATIVO e outro ENCERRADO retorna CLIENTE — precedência sobre CLIENTE_INATIVO")
         void pessoaComContratoAtivoEEncerradoRetornaCliente() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedade1 = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID propriedade2 = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID contrato1 = criarContratoAtivoEObterId(tenantId, pessoaId, propriedade1);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedade1 = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID propriedade2 = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID contrato1 = fixture.criarContratoAtivo(tenantId, pessoaId, propriedade1);
             mockMvc.perform(post("/api/v1/contratos/{id}/encerramento", contrato1)
                             .with(administradorDoTenant(tenantId))
                             .contentType(MediaType.APPLICATION_JSON)
@@ -164,7 +158,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
                                     {"justificativa":"distrato antecipado por acordo entre as partes"}
                                     """))
                     .andExpect(status().isOk());
-            criarContratoAtivoEObterId(tenantId, pessoaId, propriedade2);
+            fixture.criarContratoAtivo(tenantId, pessoaId, propriedade2);
 
             mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
                     .andExpect(jsonPath("$.classificacao").value("CLIENTE"));
@@ -173,11 +167,11 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("filtro ?classificacao= retorna só pessoas na classificação pedida")
         void filtraPorClassificacao() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             UUID leadId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Lead Puro");
-            UUID clienteId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, clienteId);
-            criarContratoAtivoEObterId(tenantId, clienteId, propriedadeId);
+            UUID clienteId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, clienteId);
+            fixture.criarContratoAtivo(tenantId, clienteId, propriedadeId);
 
             mockMvc.perform(get("/api/v1/pessoas?classificacao=CLIENTE").with(administradorDoTenant(tenantId)))
                     .andExpect(jsonPath("$.totalElements").value(1))
@@ -195,7 +189,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("administrador não pode atribuir papel a si mesmo")
         void administradorNaoPodeAtribuirPapelASiMesmo() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Fulano de Tal");
             atribuirPapel(tenantId, pessoaId, "ADMINISTRADOR", "fulano@exemplo.com").andExpect(status().isOk());
             String subject = TestKeycloakAdminConfig.subjectIdpDeterministico("fulano@exemplo.com", "Fulano de Tal", tenantId);
@@ -213,7 +207,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("administrador não pode remover o próprio papel")
         void administradorNaoPodeRemoverOProprioPapel() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Fulano de Tal");
             atribuirPapel(tenantId, pessoaId, "ADMINISTRADOR", "fulano@exemplo.com").andExpect(status().isOk());
             String subject = TestKeycloakAdminConfig.subjectIdpDeterministico("fulano@exemplo.com", "Fulano de Tal", tenantId);
@@ -227,7 +221,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("administrador pode atribuir papel a outra pessoa")
         void administradorPodeAtribuirPapelAOutraPessoa() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             UUID autorId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Autora");
             atribuirPapel(tenantId, autorId, "ADMINISTRADOR", "autora@exemplo.com").andExpect(status().isOk());
             String subjectAutora = TestKeycloakAdminConfig.subjectIdpDeterministico("autora@exemplo.com", "Autora", tenantId);
@@ -250,7 +244,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("payload sem nome e sem documento nomeia os dois campos em campos{}")
         void payloadIncompletoNomeiaOsCampos() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
 
             mockMvc.perform(post("/api/v1/pessoas")
                             .with(administradorDoTenant(tenantId))
@@ -267,7 +261,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("mensagem do campo não depende do Accept-Language do cliente")
         void mensagemNaoDependeDoIdiomaDoCliente() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
 
             mockMvc.perform(post("/api/v1/pessoas")
                             .with(administradorDoTenant(tenantId))
@@ -349,8 +343,8 @@ class PessoaApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("pessoa de outro tenant retorna 404")
             void pessoaDeOutroTenantRetorna404() throws Exception {
-                UUID tenantA = criarTenant();
-                UUID tenantB = criarTenant();
+                UUID tenantA = fixture.criarTenant();
+                UUID tenantB = fixture.criarTenant();
                 UUID pessoaId = criarPessoaEObterId(tenantA, CpfTestFixture.novoCpfValido(), "Fulano de Tal");
 
                 mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantB)))
@@ -389,7 +383,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("pessoa inexistente retorna 404")
             void pessoaInexistenteRetorna404() throws Exception {
-                UUID tenantId = criarTenant();
+                UUID tenantId = fixture.criarTenant();
 
                 mockMvc.perform(put("/api/v1/pessoas/{id}", UUID.randomUUID())
                                 .with(administradorDoTenant(tenantId))
@@ -432,7 +426,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("pessoa inexistente retorna 404")
             void pessoaInexistenteRetorna404() throws Exception {
-                UUID tenantId = criarTenant();
+                UUID tenantId = fixture.criarTenant();
 
                 mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", UUID.randomUUID())
                                 .with(administradorDoTenant(tenantId))
@@ -466,7 +460,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("pessoa inexistente retorna 404")
             void pessoaInexistenteRetorna404() throws Exception {
-                UUID tenantId = criarTenant();
+                UUID tenantId = fixture.criarTenant();
 
                 mockMvc.perform(delete("/api/v1/pessoas/{id}/papeis/ADMINISTRADOR", UUID.randomUUID())
                                 .with(administradorDoTenant(tenantId)))
@@ -496,7 +490,7 @@ class PessoaApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("pessoa inexistente retorna 404")
             void pessoaInexistenteRetorna404() throws Exception {
-                UUID tenantId = criarTenant();
+                UUID tenantId = fixture.criarTenant();
 
                 mockMvc.perform(post("/api/v1/pessoas/{id}/inativacao", UUID.randomUUID())
                                 .with(administradorDoTenant(tenantId)))
@@ -510,20 +504,6 @@ class PessoaApiIT extends AbstractIntegrationTest {
         return """
                 {"tipoDocumento":"CPF","documento":"%s","nome":"Fulano de Tal"}
                 """.formatted(documento);
-    }
-
-    private UUID criarTenant() throws Exception {
-        String slug = "corretora-" + UUID.randomUUID();
-        String corpo = """
-                {"razaoSocial":"Corretora Teste","cnpj":"%s","slug":"%s"}
-                """.formatted(CnpjTestFixture.novoCnpjValido(), slug);
-        String location = mockMvc.perform(post("/api/v1/plataforma/imobiliarias")
-                        .with(jwt().authorities(() -> "ROLE_PLATAFORMA_ADMIN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpo))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
     }
 
     private ResultActions criarPessoa(UUID tenantId, String documento, String nome) throws Exception {
@@ -551,81 +531,5 @@ class PessoaApiIT extends AbstractIntegrationTest {
                 .with(administradorDoTenant(tenantId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(corpo));
-    }
-
-    private UUID criarProprietario(UUID tenantId) throws Exception {
-        UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Proprietário Teste");
-        mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", pessoaId)
-                        .with(administradorDoTenant(tenantId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"papel":"PROPRIETARIO"}
-                                """))
-                .andExpect(status().isOk());
-        return pessoaId;
-    }
-
-    private String corpoPropriedade(UUID proprietarioId) {
-        return """
-                {"proprietarioId":"%s","tipo":"APARTAMENTO","areaPrivativa":85.50,"quartos":3,"vagas":1,
-                 "valorReferencia":450000.00,"cep":"01310100","logradouro":"Av. Paulista","numero":"1000",
-                 "bairro":"Bela Vista","localidade":"São Paulo","uf":"SP","enderecoValidado":true}
-                """.formatted(proprietarioId);
-    }
-
-    private UUID criarPropriedadeEObterId(UUID tenantId, UUID proprietarioId) throws Exception {
-        String location = mockMvc.perform(post("/api/v1/propriedades")
-                        .with(administradorDoTenant(tenantId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpoPropriedade(proprietarioId)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private UUID criarOrcamentoEObterId(UUID tenantId, UUID pessoaId, UUID propriedadeId) throws Exception {
-        String corpo = """
-                {"pessoaId":"%s","itens":[{"propriedadeId":"%s","comissaoPercentual":5.00,"valorPedido":450000.00}]}
-                """.formatted(pessoaId, propriedadeId);
-        String location = mockMvc.perform(post("/api/v1/orcamentos")
-                        .with(administradorDoTenant(tenantId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpo))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private UUID criarContratoAtivoEObterId(UUID tenantId, UUID pessoaId, UUID propriedadeId) throws Exception {
-        UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId);
-        mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/orcamentos/{id}/aceite", orcamentoId).with(administradorDoTenant(tenantId)))
-                .andExpect(status().isOk());
-        String corpoContrato = """
-                {"orcamentoId":"%s","vigenciaInicio":"%s","vigenciaFim":"%s","regrasContratuais":"regras de teste"}
-                """.formatted(orcamentoId, LocalDate.now(), LocalDate.now().plusYears(1));
-        String location = mockMvc.perform(post("/api/v1/contratos")
-                        .with(administradorDoTenant(tenantId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpoContrato))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        UUID contratoId = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-        mockMvc.perform(post("/api/v1/contratos/{id}/ativacao", contratoId).with(administradorDoTenant(tenantId)))
-                .andExpect(status().isOk());
-        return contratoId;
-    }
-
-    private static RequestPostProcessor administradorDoTenant(UUID tenantId) {
-        return jwt()
-                .jwt(builder -> builder.claim("tenant_id", tenantId.toString()))
-                .authorities(() -> "ROLE_ADMINISTRADOR");
-    }
-
-    private static RequestPostProcessor comoPessoa(UUID tenantId, String subjectIdp) {
-        return jwt()
-                .jwt(builder -> builder.subject(subjectIdp).claim("tenant_id", tenantId.toString()))
-                .authorities(() -> "ROLE_ADMINISTRADOR");
     }
 }

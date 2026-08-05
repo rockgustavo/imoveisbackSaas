@@ -1,29 +1,26 @@
 package br.com.rockgustavo.imobiliaria.shared.security;
 
+import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.administradorDoTenant;
+import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.comoPessoa;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+
+import java.util.UUID;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
 import br.com.rockgustavo.imobiliaria.pessoa.infra.TestKeycloakAdminConfig;
 import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import br.com.rockgustavo.imobiliaria.shared.validation.CpfTestFixture;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
-
-import java.util.UUID;
-
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class AcessoAtivoApiIT extends AbstractIntegrationTest {
-
-    @Autowired
-    MockMvc mockMvc;
 
     @Nested
     @DisplayName("RN-02-04/ADR-08: revogação imediata de acesso")
@@ -32,7 +29,7 @@ class AcessoAtivoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("pessoa inativada perde acesso na requisição seguinte, mesmo com token ainda válido")
         void pessoaInativadaPerdeAcessoNaProximaRequisicao() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
             String subjectAtor = criarAdministrador(tenantId, "Administradora Ativa", "atora@exemplo.com").subjectIdp();
             Administrador alvo = criarAdministrador(tenantId, "Administrador Alvo", "alvo@exemplo.com");
 
@@ -86,31 +83,5 @@ class AcessoAtivoApiIT extends AbstractIntegrationTest {
     }
 
     private record Administrador(UUID id, String subjectIdp) {
-    }
-
-    private UUID criarTenant() throws Exception {
-        String slug = "corretora-" + UUID.randomUUID();
-        String corpo = """
-                {"razaoSocial":"Corretora Teste","cnpj":"%s","slug":"%s"}
-                """.formatted(CnpjTestFixture.novoCnpjValido(), slug);
-        String location = mockMvc.perform(post("/api/v1/plataforma/imobiliarias")
-                        .with(jwt().authorities(() -> "ROLE_PLATAFORMA_ADMIN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpo))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private static RequestPostProcessor administradorDoTenant(UUID tenantId) {
-        return jwt()
-                .jwt(builder -> builder.claim("tenant_id", tenantId.toString()))
-                .authorities(() -> "ROLE_ADMINISTRADOR");
-    }
-
-    private static RequestPostProcessor comoPessoa(UUID tenantId, String subjectIdp) {
-        return jwt()
-                .jwt(builder -> builder.subject(subjectIdp).claim("tenant_id", tenantId.toString()))
-                .authorities(() -> "ROLE_ADMINISTRADOR");
     }
 }

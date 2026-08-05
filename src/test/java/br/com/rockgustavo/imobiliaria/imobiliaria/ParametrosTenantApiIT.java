@@ -1,28 +1,21 @@
 package br.com.rockgustavo.imobiliaria.imobiliaria;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
-import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.UUID;
 
+import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.administradorDoTenant;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ParametrosTenantApiIT extends AbstractIntegrationTest {
-
-    @Autowired
-    MockMvc mockMvc;
 
     @Nested
     @DisplayName("RN-00-09/10: parâmetros do tenant")
@@ -31,7 +24,7 @@ class ParametrosTenantApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("nasce com os defaults de plataforma")
         void nasceComDefaults() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
 
             mockMvc.perform(get("/api/v1/tenant/parametros").with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk())
@@ -42,8 +35,8 @@ class ParametrosTenantApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("RN-00-01/02/03: alteração em um tenant não vaza nem afeta outro")
         void isolaEntreTenants() throws Exception {
-            UUID tenantA = criarTenant();
-            UUID tenantB = criarTenant();
+            UUID tenantA = fixture.criarTenant();
+            UUID tenantB = fixture.criarTenant();
 
             mockMvc.perform(put("/api/v1/tenant/parametros")
                             .with(administradorDoTenant(tenantA))
@@ -64,7 +57,7 @@ class ParametrosTenantApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita teto de comissão zero com 422")
         void rejeitaTetoInvalido() throws Exception {
-            UUID tenantId = criarTenant();
+            UUID tenantId = fixture.criarTenant();
 
             mockMvc.perform(put("/api/v1/tenant/parametros")
                             .with(administradorDoTenant(tenantId))
@@ -119,25 +112,5 @@ class ParametrosTenantApiIT extends AbstractIntegrationTest {
                                     """))
                     .andExpect(status().isForbidden());
         }
-    }
-
-    private UUID criarTenant() throws Exception {
-        String slug = "corretora-" + UUID.randomUUID();
-        String corpo = """
-                {"razaoSocial":"Corretora Teste","cnpj":"%s","slug":"%s"}
-                """.formatted(CnpjTestFixture.novoCnpjValido(), slug);
-        String location = mockMvc.perform(post("/api/v1/plataforma/imobiliarias")
-                        .with(SecurityMockMvcRequestPostProcessors.jwt().authorities(() -> "ROLE_PLATAFORMA_ADMIN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpo))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private static RequestPostProcessor administradorDoTenant(UUID tenantId) {
-        return SecurityMockMvcRequestPostProcessors.jwt()
-                .jwt(builder -> builder.claim("tenant_id", tenantId.toString()))
-                .authorities(() -> "ROLE_ADMINISTRADOR");
     }
 }

@@ -1,19 +1,15 @@
 package br.com.rockgustavo.imobiliaria.orcamento;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
-import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
-import br.com.rockgustavo.imobiliaria.shared.validation.CpfTestFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.UUID;
 
+import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.administradorDoTenant;
+import static br.com.rockgustavo.imobiliaria.ApiTestFixture.corpoOrcamento;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -23,9 +19,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class OrcamentoApiIT extends AbstractIntegrationTest {
 
-    @Autowired
-    MockMvc mockMvc;
-
     @Nested
     @DisplayName("RN-05-01/01-06: criação de orçamento")
     class Criacao {
@@ -33,9 +26,9 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("cria orçamento em RASCUNHO")
         void criaOrcamentoEmRascunho() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
 
             mockMvc.perform(post("/api/v1/orcamentos")
                             .with(administradorDoTenant(tenantId))
@@ -47,9 +40,9 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("RN-01-06: rejeita pessoa inativa")
         void rejeitaPessoaInativa() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
             mockMvc.perform(post("/api/v1/pessoas/{id}/inativacao", pessoaId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isNoContent());
 
@@ -64,8 +57,8 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita propriedade inexistente no tenant")
         void rejeitaPropriedadeInexistente() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
 
             mockMvc.perform(post("/api/v1/orcamentos")
                             .with(administradorDoTenant(tenantId))
@@ -78,9 +71,9 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita propriedade repetida entre os itens")
         void rejeitaItemComPropriedadeRepetida() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
             String corpo = """
                     {"pessoaId":"%s","itens":[
                         {"propriedadeId":"%s","comissaoPercentual":5.00,"valorPedido":450000.00},
@@ -104,10 +97,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("atualiza itens quando RASCUNHO")
         void atualizaItensQuandoRascunho() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
             String corpo = """
                     {"itens":[{"propriedadeId":"%s","comissaoPercentual":4.00,"valorPedido":420000.00}]}
                     """.formatted(propriedadeId);
@@ -123,10 +116,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita atualização fora de RASCUNHO")
         void rejeitaAtualizacaoForaDeRascunho() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk());
             String corpo = """
@@ -149,10 +142,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("envia quando propriedade disponível do proprietário do orçamento")
         void enviaQuandoValido() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
 
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk())
@@ -162,11 +155,11 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita envio com propriedade de outro proprietário")
         void rejeitaEnvioComPropriedadeDeOutroProprietario() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID outroProprietario = criarProprietario(tenantId);
-            UUID propriedadeDeOutro = criarPropriedadeEObterId(tenantId, outroProprietario);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeDeOutro, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID outroProprietario = fixture.criarProprietario(tenantId);
+            UUID propriedadeDeOutro = fixture.criarPropriedade(tenantId, outroProprietario);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeDeOutro, "5.00");
 
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isUnprocessableEntity())
@@ -176,10 +169,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita envio com propriedade indisponível (não DISPONIVEL)")
         void rejeitaEnvioComPropriedadeIndisponivel() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
             mockMvc.perform(post("/api/v1/propriedades/{id}/retirada", propriedadeId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk());
 
@@ -191,10 +184,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita envio com comissão acima do teto do tenant")
         void rejeitaEnvioComComissaoAcimaDoTeto() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "50.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "50.00");
 
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isUnprocessableEntity())
@@ -209,10 +202,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("aceita orçamento ENVIADO")
         void aceitaQuandoEnviado() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk());
 
@@ -224,10 +217,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("recusa orçamento ENVIADO")
         void recusaQuandoEnviado() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk());
 
@@ -239,10 +232,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("rejeita aceitar orçamento ainda em RASCUNHO")
         void rejeitaAceitarQuandoRascunho() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
 
             mockMvc.perform(post("/api/v1/orcamentos/{id}/aceite", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isUnprocessableEntity())
@@ -257,10 +250,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("duplica orçamento ACEITO em nova versão RASCUNHO, sem alterar o original")
         void duplicaGeraNovaVersaoSemAlterarOriginal() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID orcamentoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
             mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk());
             mockMvc.perform(post("/api/v1/orcamentos/{id}/aceite", orcamentoId).with(administradorDoTenant(tenantId)))
@@ -288,14 +281,14 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("lista apenas orçamentos do tenant corrente")
         void listaApenasDoTenantCorrente() throws Exception {
-            UUID tenantA = criarTenant();
-            UUID tenantB = criarTenant();
-            UUID pessoaA = criarProprietario(tenantA);
-            UUID propriedadeA = criarPropriedadeEObterId(tenantA, pessoaA);
-            criarOrcamentoEObterId(tenantA, pessoaA, propriedadeA, "5.00");
-            UUID pessoaB = criarProprietario(tenantB);
-            UUID propriedadeB = criarPropriedadeEObterId(tenantB, pessoaB);
-            criarOrcamentoEObterId(tenantB, pessoaB, propriedadeB, "5.00");
+            UUID tenantA = fixture.criarTenant();
+            UUID tenantB = fixture.criarTenant();
+            UUID pessoaA = fixture.criarProprietario(tenantA);
+            UUID propriedadeA = fixture.criarPropriedade(tenantA, pessoaA);
+            fixture.criarOrcamento(tenantA, pessoaA, propriedadeA, "5.00");
+            UUID pessoaB = fixture.criarProprietario(tenantB);
+            UUID propriedadeB = fixture.criarPropriedade(tenantB, pessoaB);
+            fixture.criarOrcamento(tenantB, pessoaB, propriedadeB, "5.00");
 
             mockMvc.perform(get("/api/v1/orcamentos").with(administradorDoTenant(tenantA)))
                     .andExpect(status().isOk())
@@ -305,10 +298,10 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("filtra por status")
         void filtraPorStatus() throws Exception {
-            UUID tenantId = criarTenant();
-            UUID pessoaId = criarProprietario(tenantId);
-            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-            UUID rascunhoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId, "5.00");
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = fixture.criarProprietario(tenantId);
+            UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
+            UUID rascunhoId = fixture.criarOrcamento(tenantId, pessoaId, propriedadeId, "5.00");
 
             mockMvc.perform(get("/api/v1/orcamentos?status=RASCUNHO").with(administradorDoTenant(tenantId)))
                     .andExpect(jsonPath("$.totalElements").value(1))
@@ -384,11 +377,11 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("RN-00-03: orçamento de outro tenant retorna 404")
             void orcamentoDeOutroTenantRetorna404() throws Exception {
-                UUID tenantA = criarTenant();
-                UUID tenantB = criarTenant();
-                UUID pessoaA = criarProprietario(tenantA);
-                UUID propriedadeA = criarPropriedadeEObterId(tenantA, pessoaA);
-                UUID orcamentoId = criarOrcamentoEObterId(tenantA, pessoaA, propriedadeA, "5.00");
+                UUID tenantA = fixture.criarTenant();
+                UUID tenantB = fixture.criarTenant();
+                UUID pessoaA = fixture.criarProprietario(tenantA);
+                UUID propriedadeA = fixture.criarPropriedade(tenantA, pessoaA);
+                UUID orcamentoId = fixture.criarOrcamento(tenantA, pessoaA, propriedadeA, "5.00");
 
                 mockMvc.perform(get("/api/v1/orcamentos/{id}", orcamentoId).with(administradorDoTenant(tenantB)))
                         .andExpect(status().isNotFound())
@@ -414,7 +407,7 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("orçamento inexistente retorna 404")
             void orcamentoInexistenteRetorna404() throws Exception {
-                UUID tenantId = criarTenant();
+                UUID tenantId = fixture.criarTenant();
 
                 mockMvc.perform(put("/api/v1/orcamentos/{id}", UUID.randomUUID())
                                 .with(administradorDoTenant(tenantId))
@@ -505,7 +498,7 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
             @Test
             @DisplayName("orçamento inexistente retorna 404")
             void orcamentoInexistenteRetorna404() throws Exception {
-                UUID tenantId = criarTenant();
+                UUID tenantId = fixture.criarTenant();
 
                 mockMvc.perform(post("/api/v1/orcamentos/{id}/duplicacao", UUID.randomUUID())
                                 .with(administradorDoTenant(tenantId)))
@@ -513,86 +506,5 @@ class OrcamentoApiIT extends AbstractIntegrationTest {
                         .andExpect(jsonPath("$.codigo").value("ORCAMENTO_NAO_ENCONTRADO"));
             }
         }
-    }
-
-    private String corpoOrcamento(UUID pessoaId, UUID propriedadeId, String comissaoPercentual) {
-        return """
-                {"pessoaId":"%s","itens":[{"propriedadeId":"%s","comissaoPercentual":%s,"valorPedido":450000.00}]}
-                """.formatted(pessoaId, propriedadeId, comissaoPercentual);
-    }
-
-    private UUID criarOrcamentoEObterId(UUID tenantId, UUID pessoaId, UUID propriedadeId, String comissaoPercentual)
-            throws Exception {
-        String location = mockMvc.perform(post("/api/v1/orcamentos")
-                        .with(administradorDoTenant(tenantId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpoOrcamento(pessoaId, propriedadeId, comissaoPercentual)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private String corpoPropriedade(UUID proprietarioId) {
-        return """
-                {"proprietarioId":"%s","tipo":"APARTAMENTO","areaPrivativa":85.50,"quartos":3,"vagas":1,
-                 "valorReferencia":450000.00,"cep":"01310100","logradouro":"Av. Paulista","numero":"1000",
-                 "bairro":"Bela Vista","localidade":"São Paulo","uf":"SP","enderecoValidado":true}
-                """.formatted(proprietarioId);
-    }
-
-    private UUID criarPropriedadeEObterId(UUID tenantId, UUID proprietarioId) throws Exception {
-        String location = mockMvc.perform(post("/api/v1/propriedades")
-                        .with(administradorDoTenant(tenantId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpoPropriedade(proprietarioId)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private UUID criarProprietario(UUID tenantId) throws Exception {
-        String corpo = """
-                {"tipoDocumento":"CPF","documento":"%s","nome":"Proprietário Teste"}
-                """.formatted(CpfTestFixture.novoCpfValido());
-        UUID pessoaId = criarPessoaEObterId(tenantId, corpo);
-
-        mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", pessoaId)
-                        .with(administradorDoTenant(tenantId))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"papel":"PROPRIETARIO"}
-                                """))
-                .andExpect(status().isOk());
-        return pessoaId;
-    }
-
-    private UUID criarPessoaEObterId(UUID tenantId, String corpo) throws Exception {
-        ResultActions resultado = mockMvc.perform(post("/api/v1/pessoas")
-                .with(administradorDoTenant(tenantId))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(corpo));
-        String location = resultado.andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private UUID criarTenant() throws Exception {
-        String slug = "corretora-" + UUID.randomUUID();
-        String corpo = """
-                {"razaoSocial":"Corretora Teste","cnpj":"%s","slug":"%s"}
-                """.formatted(CnpjTestFixture.novoCnpjValido(), slug);
-        String location = mockMvc.perform(post("/api/v1/plataforma/imobiliarias")
-                        .with(jwt().authorities(() -> "ROLE_PLATAFORMA_ADMIN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(corpo))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
-        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-    }
-
-    private static RequestPostProcessor administradorDoTenant(UUID tenantId) {
-        return jwt()
-                .jwt(builder -> builder.claim("tenant_id", tenantId.toString()))
-                .authorities(() -> "ROLE_ADMINISTRADOR");
     }
 }
