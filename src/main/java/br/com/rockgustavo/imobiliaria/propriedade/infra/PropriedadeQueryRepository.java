@@ -12,7 +12,9 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -114,6 +116,31 @@ public class PropriedadeQueryRepository {
                 """)
                 .query(this::mapearPendenteGeo)
                 .list();
+    }
+
+    public List<PropriedadeAgenciadaView> propriedadesAgenciadasDeTodosOsTenants() {
+        return jdbcClient.sql("""
+                SELECT id, tenant_id
+                  FROM propriedade
+                 WHERE situacao = 'AGENCIADA'
+                """)
+                .query(this::mapearAgenciada)
+                .list();
+    }
+
+    public Set<UUID> propriedadesComAgenciamentoVigenteDeTodosOsTenants() {
+        List<UUID> propriedadeIds = jdbcClient.sql("""
+                SELECT DISTINCT propriedade_id
+                  FROM agenciamento
+                 WHERE contrato_ativo = true
+                """)
+                .query((rs, rowNum) -> (UUID) rs.getObject("propriedade_id"))
+                .list();
+        return new HashSet<>(propriedadeIds);
+    }
+
+    private PropriedadeAgenciadaView mapearAgenciada(ResultSet rs, int rowNum) throws SQLException {
+        return new PropriedadeAgenciadaView((UUID) rs.getObject("id"), (UUID) rs.getObject("tenant_id"));
     }
 
     private PropriedadePendenteGeoView mapearPendenteGeo(ResultSet rs, int rowNum) throws SQLException {

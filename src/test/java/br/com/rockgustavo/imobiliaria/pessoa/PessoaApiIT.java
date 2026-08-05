@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -101,6 +102,89 @@ class PessoaApiIT extends AbstractIntegrationTest {
             mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.classificacao").value("LEAD"));
+        }
+
+        @Test
+        @DisplayName("pessoa com orçamento ENVIADO e validade futura retorna PROSPECT")
+        void pessoaComOrcamentoEnviadoRetornaProspect() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID pessoaId = criarProprietario(tenantId);
+            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
+            UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId);
+            mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
+                    .andExpect(jsonPath("$.classificacao").value("PROSPECT"));
+        }
+
+        @Test
+        @DisplayName("pessoa com contrato ATIVO retorna CLIENTE")
+        void pessoaComContratoAtivoRetornaCliente() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID pessoaId = criarProprietario(tenantId);
+            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
+            criarContratoAtivoEObterId(tenantId, pessoaId, propriedadeId);
+
+            mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
+                    .andExpect(jsonPath("$.classificacao").value("CLIENTE"));
+        }
+
+        @Test
+        @DisplayName("pessoa cujo único contrato foi ENCERRADO retorna CLIENTE_INATIVO")
+        void pessoaComContratoEncerradoRetornaClienteInativo() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID pessoaId = criarProprietario(tenantId);
+            UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
+            UUID contratoId = criarContratoAtivoEObterId(tenantId, pessoaId, propriedadeId);
+            mockMvc.perform(post("/api/v1/contratos/{id}/encerramento", contratoId)
+                            .with(administradorDoTenant(tenantId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"justificativa":"distrato antecipado por acordo entre as partes"}
+                                    """))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
+                    .andExpect(jsonPath("$.classificacao").value("CLIENTE_INATIVO"));
+        }
+
+        @Test
+        @DisplayName("pessoa com um contrato ATIVO e outro ENCERRADO retorna CLIENTE — precedência sobre CLIENTE_INATIVO")
+        void pessoaComContratoAtivoEEncerradoRetornaCliente() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID pessoaId = criarProprietario(tenantId);
+            UUID propriedade1 = criarPropriedadeEObterId(tenantId, pessoaId);
+            UUID propriedade2 = criarPropriedadeEObterId(tenantId, pessoaId);
+            UUID contrato1 = criarContratoAtivoEObterId(tenantId, pessoaId, propriedade1);
+            mockMvc.perform(post("/api/v1/contratos/{id}/encerramento", contrato1)
+                            .with(administradorDoTenant(tenantId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"justificativa":"distrato antecipado por acordo entre as partes"}
+                                    """))
+                    .andExpect(status().isOk());
+            criarContratoAtivoEObterId(tenantId, pessoaId, propriedade2);
+
+            mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
+                    .andExpect(jsonPath("$.classificacao").value("CLIENTE"));
+        }
+
+        @Test
+        @DisplayName("filtro ?classificacao= retorna só pessoas na classificação pedida")
+        void filtraPorClassificacao() throws Exception {
+            UUID tenantId = criarTenant();
+            UUID leadId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Lead Puro");
+            UUID clienteId = criarProprietario(tenantId);
+            UUID propriedadeId = criarPropriedadeEObterId(tenantId, clienteId);
+            criarContratoAtivoEObterId(tenantId, clienteId, propriedadeId);
+
+            mockMvc.perform(get("/api/v1/pessoas?classificacao=CLIENTE").with(administradorDoTenant(tenantId)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].id").value(clienteId.toString()));
+            mockMvc.perform(get("/api/v1/pessoas?classificacao=LEAD").with(administradorDoTenant(tenantId)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].id").value(leadId.toString()));
         }
     }
 
@@ -467,6 +551,70 @@ class PessoaApiIT extends AbstractIntegrationTest {
                 .with(administradorDoTenant(tenantId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(corpo));
+    }
+
+    private UUID criarProprietario(UUID tenantId) throws Exception {
+        UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Proprietário Teste");
+        mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", pessoaId)
+                        .with(administradorDoTenant(tenantId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"papel":"PROPRIETARIO"}
+                                """))
+                .andExpect(status().isOk());
+        return pessoaId;
+    }
+
+    private String corpoPropriedade(UUID proprietarioId) {
+        return """
+                {"proprietarioId":"%s","tipo":"APARTAMENTO","areaPrivativa":85.50,"quartos":3,"vagas":1,
+                 "valorReferencia":450000.00,"cep":"01310100","logradouro":"Av. Paulista","numero":"1000",
+                 "bairro":"Bela Vista","localidade":"São Paulo","uf":"SP","enderecoValidado":true}
+                """.formatted(proprietarioId);
+    }
+
+    private UUID criarPropriedadeEObterId(UUID tenantId, UUID proprietarioId) throws Exception {
+        String location = mockMvc.perform(post("/api/v1/propriedades")
+                        .with(administradorDoTenant(tenantId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoPropriedade(proprietarioId)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+    }
+
+    private UUID criarOrcamentoEObterId(UUID tenantId, UUID pessoaId, UUID propriedadeId) throws Exception {
+        String corpo = """
+                {"pessoaId":"%s","itens":[{"propriedadeId":"%s","comissaoPercentual":5.00,"valorPedido":450000.00}]}
+                """.formatted(pessoaId, propriedadeId);
+        String location = mockMvc.perform(post("/api/v1/orcamentos")
+                        .with(administradorDoTenant(tenantId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+    }
+
+    private UUID criarContratoAtivoEObterId(UUID tenantId, UUID pessoaId, UUID propriedadeId) throws Exception {
+        UUID orcamentoId = criarOrcamentoEObterId(tenantId, pessoaId, propriedadeId);
+        mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/orcamentos/{id}/aceite", orcamentoId).with(administradorDoTenant(tenantId)))
+                .andExpect(status().isOk());
+        String corpoContrato = """
+                {"orcamentoId":"%s","vigenciaInicio":"%s","vigenciaFim":"%s","regrasContratuais":"regras de teste"}
+                """.formatted(orcamentoId, LocalDate.now(), LocalDate.now().plusYears(1));
+        String location = mockMvc.perform(post("/api/v1/contratos")
+                        .with(administradorDoTenant(tenantId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoContrato))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        UUID contratoId = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+        mockMvc.perform(post("/api/v1/contratos/{id}/ativacao", contratoId).with(administradorDoTenant(tenantId)))
+                .andExpect(status().isOk());
+        return contratoId;
     }
 
     private static RequestPostProcessor administradorDoTenant(UUID tenantId) {

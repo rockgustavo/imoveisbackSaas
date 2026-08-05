@@ -1,5 +1,6 @@
 package br.com.rockgustavo.imobiliaria.pessoa.application;
 
+import br.com.rockgustavo.imobiliaria.imobiliaria.ImobiliariaFacade;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.CredencialProvisionamentoException;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.Papel;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.Pessoa;
@@ -51,6 +52,9 @@ class PessoaServiceTest {
 
     @Mock
     AcessoAtivoCache acessoAtivoCache;
+
+    @Mock
+    ImobiliariaFacade imobiliariaFacade;
 
     @InjectMocks
     PessoaService service;
@@ -121,6 +125,7 @@ class PessoaServiceTest {
             autenticarComo("subject-autora");
             when(pessoaRepository.findBySubjectIdp("subject-autora")).thenReturn(Optional.of(autor));
             when(pessoaRepository.buscarPorId(alvo.getId())).thenReturn(Optional.of(alvo));
+            when(imobiliariaFacade.fusoHorario(any())).thenReturn("America/Sao_Paulo");
 
             AtribuirPapelComando comando = new AtribuirPapelComando(alvo.getId(), Papel.PROPRIETARIO, null);
 

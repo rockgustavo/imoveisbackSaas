@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -20,32 +21,54 @@ import java.util.UUID;
 @Repository
 public class PessoaQueryRepository {
 
+    private static final String CASE_CLASSIFICACAO = """
+            CASE
+              WHEN EXISTS (SELECT 1 FROM contrato c
+                            WHERE c.tenant_id = p.tenant_id AND c.pessoa_id = p.id AND c.status = 'ATIVO')
+                  THEN 'CLIENTE'
+              WHEN EXISTS (SELECT 1 FROM orcamento o
+                            WHERE o.tenant_id = p.tenant_id AND o.pessoa_id = p.id
+                              AND o.status = 'ENVIADO' AND o.validade >= :hoje)
+                  THEN 'PROSPECT'
+              WHEN EXISTS (SELECT 1 FROM contrato c
+                            WHERE c.tenant_id = p.tenant_id AND c.pessoa_id = p.id)
+                  THEN 'CLIENTE_INATIVO'
+              ELSE 'LEAD'
+            END""";
+
     private final JdbcClient jdbcClient;
 
     public PessoaQueryRepository(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
     }
 
-    public Page<PessoaResumoView> listar(UUID tenantId, PessoaFiltro filtro, Pageable pageable) {
-        String condicoes = condicoesDoFiltro(filtro);
-        long total = contar(tenantId, filtro, condicoes);
+    public Page<PessoaResumoView> listar(UUID tenantId, PessoaFiltro filtro, LocalDate hoje, Pageable pageable) {
+        String condicoesBase = condicoesBaseDoFiltro(filtro);
+        String condicaoClassificacao = filtro.classificacao() != null ? " WHERE t.classificacao = :classificacao" : "";
+        long total = contar(tenantId, filtro, hoje, condicoesBase, condicaoClassificacao);
         if (total == 0) {
             return new PageImpl<>(List.of(), pageable, 0);
         }
 
         JdbcClient.StatementSpec consulta = jdbcClient.sql("""
-                SELECT p.id, p.tipo_documento, p.documento, p.nome, p.email, p.ativo,
-                       p.criado_em, p.alterado_em,
-                       (SELECT array_agg(pp.papel ORDER BY pp.papel)
-                          FROM pessoa_papel pp
-                         WHERE pp.tenant_id = :tenantId AND pp.pessoa_id = p.id) AS papeis
-                  FROM pessoa p
-                 WHERE p.tenant_id = :tenantId
-                """ + condicoes + """
-                 ORDER BY p.criado_em DESC
+                SELECT * FROM (
+                  SELECT p.id, p.tipo_documento, p.documento, p.nome, p.email, p.ativo,
+                         p.criado_em, p.alterado_em,
+                         (SELECT array_agg(pp.papel ORDER BY pp.papel)
+                            FROM pessoa_papel pp
+                           WHERE pp.tenant_id = :tenantId AND pp.pessoa_id = p.id) AS papeis,
+                         """ + CASE_CLASSIFICACAO + """
+                          AS classificacao
+                    FROM pessoa p
+                   WHERE p.tenant_id = :tenantId
+                  """ + condicoesBase + """
+                ) t
+                """ + condicaoClassificacao + """
+                 ORDER BY t.criado_em DESC
                  LIMIT :limit OFFSET :offset
                 """)
                 .param("tenantId", tenantId)
+                .param("hoje", hoje)
                 .param("limit", pageable.getPageSize())
                 .param("offset", pageable.getOffset());
         consulta = aplicarParametrosDeFiltro(consulta, filtro);
@@ -54,18 +77,39 @@ public class PessoaQueryRepository {
         return new PageImpl<>(conteudo, pageable, total);
     }
 
-    private long contar(UUID tenantId, PessoaFiltro filtro, String condicoes) {
-        JdbcClient.StatementSpec consulta = jdbcClient.sql("""
-                SELECT count(*)
+    public ClassificacaoComercial classificacaoDe(UUID tenantId, UUID pessoaId, LocalDate hoje) {
+        String classificacao = jdbcClient.sql("""
+                SELECT
+                """ + CASE_CLASSIFICACAO + """
                   FROM pessoa p
-                 WHERE p.tenant_id = :tenantId
-                """ + condicoes)
-                .param("tenantId", tenantId);
+                 WHERE p.tenant_id = :tenantId AND p.id = :pessoaId
+                """)
+                .param("tenantId", tenantId)
+                .param("pessoaId", pessoaId)
+                .param("hoje", hoje)
+                .query(String.class)
+                .single();
+        return ClassificacaoComercial.valueOf(classificacao);
+    }
+
+    private long contar(UUID tenantId, PessoaFiltro filtro, LocalDate hoje, String condicoesBase, String condicaoClassificacao) {
+        JdbcClient.StatementSpec consulta = jdbcClient.sql("""
+                SELECT count(*) FROM (
+                  SELECT p.id,
+                         """ + CASE_CLASSIFICACAO + """
+                          AS classificacao
+                    FROM pessoa p
+                   WHERE p.tenant_id = :tenantId
+                  """ + condicoesBase + """
+                ) t
+                """ + condicaoClassificacao)
+                .param("tenantId", tenantId)
+                .param("hoje", hoje);
         consulta = aplicarParametrosDeFiltro(consulta, filtro);
         return consulta.query(Long.class).single();
     }
 
-    private String condicoesDoFiltro(PessoaFiltro filtro) {
+    private String condicoesBaseDoFiltro(PessoaFiltro filtro) {
         StringBuilder condicoes = new StringBuilder();
         if (filtro.documento() != null) {
             condicoes.append(" AND p.documento = :documento");
@@ -92,6 +136,9 @@ public class PessoaQueryRepository {
         if (filtro.papel() != null) {
             consulta = consulta.param("papel", filtro.papel().name());
         }
+        if (filtro.classificacao() != null) {
+            consulta = consulta.param("classificacao", filtro.classificacao().name());
+        }
         return consulta;
     }
 
@@ -108,7 +155,7 @@ public class PessoaQueryRepository {
                 rs.getString("email"),
                 rs.getBoolean("ativo"),
                 papeis,
-                ClassificacaoComercial.LEAD,
+                ClassificacaoComercial.valueOf(rs.getString("classificacao")),
                 rs.getTimestamp("criado_em").toInstant(),
                 rs.getTimestamp("alterado_em").toInstant());
     }

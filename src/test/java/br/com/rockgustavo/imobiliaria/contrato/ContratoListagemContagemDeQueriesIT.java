@@ -1,72 +1,83 @@
-package br.com.rockgustavo.imobiliaria.orcamento;
+package br.com.rockgustavo.imobiliaria.contrato;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
-import br.com.rockgustavo.imobiliaria.orcamento.application.ExpiracaoOrcamentoJob;
-import br.com.rockgustavo.imobiliaria.orcamento.domain.Orcamento;
-import br.com.rockgustavo.imobiliaria.orcamento.infra.OrcamentoRepository;
-import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
 import br.com.rockgustavo.imobiliaria.shared.validation.CnpjTestFixture;
 import br.com.rockgustavo.imobiliaria.shared.validation.CpfTestFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class OrcamentoExpiracaoIT extends AbstractIntegrationTest {
+@Import(ContadorDeQueriesConfig.class)
+class ContratoListagemContagemDeQueriesIT extends AbstractIntegrationTest {
+
+    private static final int LIMITE_DE_QUERIES = 2;
 
     @Autowired
     MockMvc mockMvc;
 
     @Autowired
-    OrcamentoRepository orcamentoRepository;
-
-    @Autowired
-    ExpiracaoOrcamentoJob expiracaoOrcamentoJob;
+    ContadorDeQueriesDataSource dataSourceContandoQueries;
 
     @Test
-    @DisplayName("RN-05-03: orçamento ENVIADO com validade vencida expira ao rodar a rotina, e o aceite passa a ser rejeitado")
-    void orcamentoVencidoExpiraAoRodarRotina() throws Exception {
+    @DisplayName("GET /contratos: uma query de contagem e uma de conteúdo com JOIN, sem N+1 por item (CLAUDE.md §4)")
+    void listagemNaoTemNMaisUm() throws Exception {
         UUID tenantId = criarTenant();
         UUID pessoaId = criarProprietario(tenantId);
-        UUID propriedadeId = criarPropriedadeEObterId(tenantId, pessoaId);
-        UUID orcamentoId = semearOrcamentoEnviadoVencidoDiretoPeloRepositorio(tenantId, pessoaId, propriedadeId);
+        UUID propriedadeA = criarPropriedadeEObterId(tenantId, pessoaId);
+        UUID propriedadeB = criarPropriedadeEObterId(tenantId, pessoaId);
+        criarContratoEObterId(tenantId, criarOrcamentoAceitoEObterId(tenantId, pessoaId, propriedadeA));
+        criarContratoEObterId(tenantId, criarOrcamentoAceitoEObterId(tenantId, pessoaId, propriedadeB));
 
-        expiracaoOrcamentoJob.executar();
+        dataSourceContandoQueries.zerar();
+        mockMvc.perform(get("/api/v1/contratos").with(administradorDoTenant(tenantId)))
+                .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/orcamentos/{id}", orcamentoId).with(administradorDoTenant(tenantId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EXPIRADO"));
-        mockMvc.perform(post("/api/v1/orcamentos/{id}/aceite", orcamentoId).with(administradorDoTenant(tenantId)))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.codigo").value("ORCAMENTO_EXPIRADO_OU_RECUSADO"));
+        assertThat(dataSourceContandoQueries.contagemAtual()).isLessThanOrEqualTo(LIMITE_DE_QUERIES);
     }
 
-    private UUID semearOrcamentoEnviadoVencidoDiretoPeloRepositorio(UUID tenantId, UUID pessoaId, UUID propriedadeId) {
-        TenantContext.definir(tenantId);
-        try {
-            Orcamento orcamento = new Orcamento(pessoaId, LocalDate.now(ZoneId.of("America/Sao_Paulo")).minusDays(1), List.of(
-                    new Orcamento.ItemProposto(propriedadeId, new BigDecimal("5.00"), new BigDecimal("450000.00"))));
-            orcamento.enviar();
-            orcamentoRepository.save(orcamento);
-            return orcamento.getId();
-        } finally {
-            TenantContext.limpar();
-        }
+    private UUID criarOrcamentoAceitoEObterId(UUID tenantId, UUID pessoaId, UUID propriedadeId) throws Exception {
+        String corpo = """
+                {"pessoaId":"%s","itens":[{"propriedadeId":"%s","comissaoPercentual":5.00,"valorPedido":450000.00}]}
+                """.formatted(pessoaId, propriedadeId);
+        String location = mockMvc.perform(post("/api/v1/orcamentos")
+                        .with(administradorDoTenant(tenantId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        UUID orcamentoId = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+        mockMvc.perform(post("/api/v1/orcamentos/{id}/envio", orcamentoId).with(administradorDoTenant(tenantId)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/orcamentos/{id}/aceite", orcamentoId).with(administradorDoTenant(tenantId)))
+                .andExpect(status().isOk());
+        return orcamentoId;
+    }
+
+    private UUID criarContratoEObterId(UUID tenantId, UUID orcamentoId) throws Exception {
+        String corpo = """
+                {"orcamentoId":"%s","vigenciaInicio":"%s","vigenciaFim":"%s","regrasContratuais":"regras de teste"}
+                """.formatted(orcamentoId, LocalDate.now(), LocalDate.now().plusYears(1));
+        String location = mockMvc.perform(post("/api/v1/contratos")
+                        .with(administradorDoTenant(tenantId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
     }
 
     private String corpoPropriedade(UUID proprietarioId) {

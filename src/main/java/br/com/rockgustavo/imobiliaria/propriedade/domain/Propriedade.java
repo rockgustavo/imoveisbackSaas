@@ -149,6 +149,19 @@ public class Propriedade extends Auditable {
         transicionarPara(SituacaoPropriedade.VENDIDA);
     }
 
+    public void agenciar() {
+        if (situacao == SituacaoPropriedade.AGENCIADA) {
+            return;
+        }
+        transicionarPara(SituacaoPropriedade.AGENCIADA);
+    }
+
+    public void liberarAgenciamento() {
+        if (situacao == SituacaoPropriedade.AGENCIADA) {
+            transicionarPara(SituacaoPropriedade.DISPONIVEL);
+        }
+    }
+
     public void transicionarPara(SituacaoPropriedade novaSituacao) {
         if (!situacao.podeTransicionarPara(novaSituacao)) {
             throw new PropriedadeTransicaoInvalidaException(situacao, novaSituacao);

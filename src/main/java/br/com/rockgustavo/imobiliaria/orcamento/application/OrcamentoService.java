@@ -1,8 +1,11 @@
 package br.com.rockgustavo.imobiliaria.orcamento.application;
 
 import br.com.rockgustavo.imobiliaria.imobiliaria.ImobiliariaFacade;
+import br.com.rockgustavo.imobiliaria.orcamento.OrcamentoFacade.ItemAceito;
+import br.com.rockgustavo.imobiliaria.orcamento.OrcamentoFacade.OrcamentoAceitoDetalhe;
 import br.com.rockgustavo.imobiliaria.orcamento.domain.Orcamento;
 import br.com.rockgustavo.imobiliaria.orcamento.domain.OrcamentoComissaoAcimaDoTetoException;
+import br.com.rockgustavo.imobiliaria.orcamento.domain.OrcamentoNaoAceitoException;
 import br.com.rockgustavo.imobiliaria.orcamento.domain.OrcamentoNaoEncontradoException;
 import br.com.rockgustavo.imobiliaria.orcamento.domain.OrcamentoPropriedadeIndisponivelException;
 import br.com.rockgustavo.imobiliaria.orcamento.domain.PessoaInativaNaoRecebeOrcamentoException;
@@ -120,6 +123,18 @@ public class OrcamentoService {
     @Transactional(readOnly = true)
     public Page<OrcamentoResumoView> listar(OrcamentoFiltro filtro, Pageable pageable) {
         return queryRepository.listar(TenantContext.obter(), filtro, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public OrcamentoAceitoDetalhe buscarAceito(UUID id) {
+        Orcamento orcamento = buscarEntidade(id);
+        if (orcamento.getStatus() != StatusOrcamento.ACEITO) {
+            throw new OrcamentoNaoAceitoException(id);
+        }
+        List<ItemAceito> itens = orcamento.getItens().stream()
+                .map(item -> new ItemAceito(item.getPropriedadeId(), item.getComissaoPercentual(), item.getValorPedido()))
+                .toList();
+        return new OrcamentoAceitoDetalhe(orcamento.getPessoaId(), itens);
     }
 
     @Transactional

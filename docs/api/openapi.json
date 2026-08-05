@@ -856,6 +856,244 @@
         }
       }
     },
+    "/api/v1/contratos" : {
+      "get" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Lista contratos do tenant",
+        "description" : "filtros: pessoaId, status, vencendoEmDias",
+        "operationId" : "listar_3",
+        "parameters" : [ {
+          "name" : "pessoaId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "RASCUNHO", "ATIVO", "ENCERRADO", "CANCELADO", "EXPIRADO" ]
+          }
+        }, {
+          "name" : "vencendoEmDias",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "pageable",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/Pageable"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseContratoResumoResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Cria um contrato em RASCUNHO a partir de um orÃ§amento aceito",
+        "description" : "RN-06-01/02, RN-05-05",
+        "operationId" : "criar_4",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CriarContratoRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "422" : {
+            "description" : "OrÃ§amento nÃ£o aceito, ou propriedade do orÃ§amento nÃ£o pertence mais ao proprietÃ¡rio (ORCAMENTO_NAO_ACEITO, PROPRIEDADE_PROPRIETARIO_DIVERGENTE)"
+          },
+          "400" : {
+            "description" : "VigÃªncia invÃ¡lida (CONTRATO_VIGENCIA_INVALIDA)"
+          },
+          "201" : {
+            "description" : "Contrato criado"
+          },
+          "409" : {
+            "description" : "OrÃ§amento jÃ¡ originou outro contrato (ORCAMENTO_JA_ORIGINOU_CONTRATO)"
+          }
+        }
+      }
+    },
+    "/api/v1/contratos/{id}/encerramento" : {
+      "post" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Encerra antecipadamente um contrato ATIVO",
+        "description" : "RN-06-04",
+        "operationId" : "encerrar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EncerramentoRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "422" : {
+            "description" : "Contrato nÃ£o estÃ¡ ATIVO (CONTRATO_TRANSICAO_INVALIDA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contratos/{id}/cancelamento" : {
+      "post" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Cancela um contrato RASCUNHO ou ATIVO sem negociaÃ§Ã£o em andamento",
+        "description" : "RN-06-10",
+        "operationId" : "cancelar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "422" : {
+            "description" : "Propriedade RESERVADA ou VENDIDA impede o cancelamento (CONTRATO_CANCELAMENTO_INVIAVEL)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contratos/{id}/ativacao" : {
+      "post" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Ativa o contrato, movendo as propriedades para AGENCIADA",
+        "description" : "RN-06-05/06/07",
+        "operationId" : "ativar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "409" : {
+            "description" : "VigÃªncia sobreposta a outro contrato ativo (CONTRATO_VIGENCIA_SOBREPOSTA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Propriedade indisponÃ­vel ou comissÃ£o acima do teto (CONTRATO_PROPRIEDADE_INDISPONIVEL, CONTRATO_COMISSAO_ACIMA_DO_TETO, CONTRATO_TRANSICAO_INVALIDA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contratos/{id}/aditivos" : {
+      "post" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Registra inclusÃ£o, exclusÃ£o ou renegociaÃ§Ã£o de propriedade em contrato ATIVO",
+        "description" : "RN-06-08/13",
+        "operationId" : "registrarAditivo",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AditivoRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "409" : {
+            "description" : "VigÃªncia sobreposta a outro contrato ativo (CONTRATO_VIGENCIA_SOBREPOSTA)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Propriedade indisponÃ­vel, comissÃ£o acima do teto, contrato fora de ATIVO, ou propriedade nÃ£o agenciada neste contrato (CONTRATO_PROPRIEDADE_INDISPONIVEL, CONTRATO_COMISSAO_ACIMA_DO_TETO, CONTRATO_TRANSICAO_INVALIDA, CONTRATO_AGENCIAMENTO_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tenant" : {
       "get" : {
         "tags" : [ "imobiliaria" ],
@@ -899,6 +1137,34 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contratos/{id}" : {
+      "get" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Detalha um contrato, com agenciamentos e aditivos embutidos",
+        "operationId" : "buscar_5",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "Contrato nÃ£o encontrado, ou de outro tenant (CONTRATO_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoResponse"
                 }
               }
             }
@@ -1439,6 +1705,158 @@
           }
         }
       },
+      "CriarContratoRequest" : {
+        "required" : [ "orcamentoId", "regrasContratuais", "vigenciaFim", "vigenciaInicio" ],
+        "type" : "object",
+        "properties" : {
+          "orcamentoId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "vigenciaInicio" : {
+            "type" : "string",
+            "format" : "date",
+            "example" : "2026-01-01"
+          },
+          "vigenciaFim" : {
+            "type" : "string",
+            "format" : "date",
+            "example" : "2026-12-31"
+          },
+          "regrasContratuais" : {
+            "type" : "string"
+          }
+        }
+      },
+      "EncerramentoRequest" : {
+        "required" : [ "justificativa" ],
+        "type" : "object",
+        "properties" : {
+          "justificativa" : {
+            "type" : "string"
+          }
+        }
+      },
+      "AditivoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "propriedadeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tipo" : {
+            "type" : "string"
+          },
+          "justificativa" : {
+            "type" : "string"
+          },
+          "data" : {
+            "type" : "string"
+          }
+        }
+      },
+      "AgenciamentoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "propriedadeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "comissaoPercentual" : {
+            "type" : "string"
+          },
+          "valorPedido" : {
+            "type" : "string"
+          },
+          "contratoAtivo" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "ContratoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "pessoaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "orcamentoOrigemId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "vigenciaInicio" : {
+            "type" : "string"
+          },
+          "vigenciaFim" : {
+            "type" : "string"
+          },
+          "regrasContratuais" : {
+            "type" : "string"
+          },
+          "justificativaEncerramento" : {
+            "type" : "string"
+          },
+          "agenciamentos" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AgenciamentoResponse"
+            }
+          },
+          "aditivos" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AditivoResponse"
+            }
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "alteradoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "AditivoRequest" : {
+        "required" : [ "justificativa", "propriedadeId", "tipo" ],
+        "type" : "object",
+        "properties" : {
+          "tipo" : {
+            "type" : "string",
+            "enum" : [ "INCLUSAO", "EXCLUSAO" ]
+          },
+          "propriedadeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "justificativa" : {
+            "type" : "string"
+          },
+          "comissaoPercentual" : {
+            "type" : "number",
+            "example" : 6.0
+          },
+          "valorPedido" : {
+            "type" : "number",
+            "example" : 450000.0
+          },
+          "camposDeInclusaoPreenchidos" : {
+            "type" : "boolean"
+          }
+        }
+      },
       "TenantResponse" : {
         "type" : "object",
         "properties" : {
@@ -1620,6 +2038,66 @@
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/OrcamentoResumoResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "ContratoResumoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "pessoaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "vigenciaInicio" : {
+            "type" : "string"
+          },
+          "vigenciaFim" : {
+            "type" : "string"
+          },
+          "quantidadeAgenciamentos" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "valorTotal" : {
+            "type" : "string"
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "PageResponseContratoResumoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ContratoResumoResponse"
             }
           },
           "page" : {

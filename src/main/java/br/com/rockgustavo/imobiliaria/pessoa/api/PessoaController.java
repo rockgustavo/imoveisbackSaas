@@ -116,7 +116,7 @@ public class PessoaController {
         return new PessoaResponse(
                 detalhe.id(), detalhe.tipoDocumento().name(), detalhe.documento(), detalhe.nome(), detalhe.email(),
                 detalhe.ativo(), detalhe.papeis().stream().map(Enum::name).toList(),
-                ClassificacaoComercial.LEAD.name(), detalhe.criadoEm(), detalhe.alteradoEm());
+                detalhe.classificacao().name(), detalhe.criadoEm(), detalhe.alteradoEm());
     }
 
     private static PessoaResponse paraResponse(PessoaResumoView view) {

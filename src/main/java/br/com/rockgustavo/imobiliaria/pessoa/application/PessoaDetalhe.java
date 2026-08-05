@@ -1,5 +1,6 @@
 package br.com.rockgustavo.imobiliaria.pessoa.application;
 
+import br.com.rockgustavo.imobiliaria.pessoa.domain.ClassificacaoComercial;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.Papel;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.TipoDocumento;
 
@@ -15,6 +16,7 @@ public record PessoaDetalhe(
         String email,
         boolean ativo,
         List<Papel> papeis,
+        ClassificacaoComercial classificacao,
         Instant criadoEm,
         Instant alteradoEm) {
 }

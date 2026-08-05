@@ -103,6 +103,16 @@ public class PropriedadeService {
         return paraDetalhe(propriedade);
     }
 
+    @Transactional
+    public void marcarAgenciada(UUID id) {
+        buscarEntidade(id).agenciar();
+    }
+
+    @Transactional
+    public void liberarAgenciamento(UUID id) {
+        buscarEntidade(id).liberarAgenciamento();
+    }
+
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
     @Transactional(readOnly = true)
     public Page<PropriedadeResumoView> listar(PropriedadeFiltro filtro, Pageable pageable) {

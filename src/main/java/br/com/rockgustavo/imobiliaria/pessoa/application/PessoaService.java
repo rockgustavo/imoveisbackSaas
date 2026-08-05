@@ -1,5 +1,6 @@
 package br.com.rockgustavo.imobiliaria.pessoa.application;
 
+import br.com.rockgustavo.imobiliaria.imobiliaria.ImobiliariaFacade;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.ClassificacaoComercial;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.DocumentoDuplicadoException;
 import br.com.rockgustavo.imobiliaria.pessoa.domain.EmailDuplicadoException;
@@ -25,6 +26,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,15 +39,17 @@ public class PessoaService {
     private final PessoaQueryRepository queryRepository;
     private final KeycloakAdminPort keycloakAdminPort;
     private final AcessoAtivoCache acessoAtivoCache;
+    private final ImobiliariaFacade imobiliariaFacade;
 
     public PessoaService(PessoaRepository pessoaRepository, PessoaPapelRepository papelRepository,
                           PessoaQueryRepository queryRepository, KeycloakAdminPort keycloakAdminPort,
-                          AcessoAtivoCache acessoAtivoCache) {
+                          AcessoAtivoCache acessoAtivoCache, ImobiliariaFacade imobiliariaFacade) {
         this.pessoaRepository = pessoaRepository;
         this.papelRepository = papelRepository;
         this.queryRepository = queryRepository;
         this.keycloakAdminPort = keycloakAdminPort;
         this.acessoAtivoCache = acessoAtivoCache;
+        this.imobiliariaFacade = imobiliariaFacade;
     }
 
     @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -136,10 +141,7 @@ public class PessoaService {
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
     @Transactional(readOnly = true)
     public Page<PessoaResumoView> listar(PessoaFiltro filtro, Pageable pageable) {
-        if (filtro.classificacao() != null && filtro.classificacao() != ClassificacaoComercial.LEAD) {
-            return Page.empty(pageable);
-        }
-        return queryRepository.listar(TenantContext.obter(), filtro, pageable);
+        return queryRepository.listar(TenantContext.obter(), filtro, hojeNoFusoDoTenant(), pageable);
     }
 
     private void garantirNaoAutoAlteracaoDePapel(UUID pessoaId) {
@@ -168,11 +170,17 @@ public class PessoaService {
         return pessoaRepository.buscarPorId(id).orElseThrow(() -> new PessoaNaoEncontradaException(id));
     }
 
+    private LocalDate hojeNoFusoDoTenant() {
+        return LocalDate.now(ZoneId.of(imobiliariaFacade.fusoHorario(TenantContext.obter())));
+    }
+
     private PessoaDetalhe paraDetalhe(Pessoa pessoa) {
         List<Papel> papeis = papelRepository.findByPessoaId(pessoa.getId()).stream()
                 .map(PessoaPapel::getPapel)
                 .toList();
+        ClassificacaoComercial classificacao = queryRepository.classificacaoDe(
+                TenantContext.obter(), pessoa.getId(), hojeNoFusoDoTenant());
         return new PessoaDetalhe(pessoa.getId(), pessoa.getTipoDocumento(), pessoa.getDocumento(), pessoa.getNome(),
-                pessoa.getEmail(), pessoa.isAtivo(), papeis, pessoa.getCriadoEm(), pessoa.getAlteradoEm());
+                pessoa.getEmail(), pessoa.isAtivo(), papeis, classificacao, pessoa.getCriadoEm(), pessoa.getAlteradoEm());
     }
 }
