@@ -1,4 +1,4 @@
-package br.com.rockgustavo.imobiliaria.contrato;
+package br.com.rockgustavo.imobiliaria;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -11,7 +11,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
-class ContadorDeQueriesDataSource implements DataSource {
+public class ContadorDeQueriesDataSource implements DataSource {
 
     private final DataSource delegate;
     private final AtomicInteger contador = new AtomicInteger();
@@ -20,11 +20,11 @@ class ContadorDeQueriesDataSource implements DataSource {
         this.delegate = delegate;
     }
 
-    int contagemAtual() {
+    public int contagemAtual() {
         return contador.get();
     }
 
-    void zerar() {
+    public void zerar() {
         contador.set(0);
     }
 

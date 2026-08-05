@@ -1,4 +1,4 @@
-package br.com.rockgustavo.imobiliaria.contrato;
+package br.com.rockgustavo.imobiliaria;
 
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean;
 import javax.sql.DataSource;
 
 @TestConfiguration
-class ContadorDeQueriesConfig {
+public class ContadorDeQueriesConfig {
 
     @Bean
     static BeanPostProcessor dataSourceContandoQueriesPostProcessor() {

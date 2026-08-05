@@ -1,8 +1,8 @@
 {
-  "openapi" : "3.0.1",
+  "openapi" : "3.1.0",
   "info" : {
-    "title" : "SaaS de administraÃ§Ã£o de corretora de imÃ³veis",
-    "description" : "Ver docs/convencoes-api.md no repositÃ³rio para o contrato completo.",
+    "title" : "SaaS de administração de corretora de imóveis",
+    "description" : "Ver docs/convencoes-api.md no repositório para o contrato completo.",
     "version" : "v1"
   },
   "servers" : [ {
@@ -16,9 +16,9 @@
     "/api/v1/tenant/parametros" : {
       "get" : {
         "tags" : [ "imobiliaria" ],
-        "summary" : "ParÃ¢metros configurÃ¡veis do tenant corrente",
+        "summary" : "Parâmetros configuráveis do tenant corrente",
         "description" : "RN-00-09",
-        "operationId" : "buscar_1",
+        "operationId" : "buscar",
         "responses" : {
           "200" : {
             "description" : "OK",
@@ -34,8 +34,8 @@
       },
       "put" : {
         "tags" : [ "imobiliaria" ],
-        "summary" : "Atualiza parÃ¢metros do tenant",
-        "description" : "RN-00-09/10 â nÃ£o retroage a contrato/orÃ§amento jÃ¡ existente",
+        "summary" : "Atualiza parâmetros do tenant",
+        "description" : "RN-00-09/10 — não retroage a contrato/orçamento já existente",
         "operationId" : "atualizar",
         "requestBody" : {
           "content" : {
@@ -65,7 +65,7 @@
       "get" : {
         "tags" : [ "propriedade" ],
         "summary" : "Detalha uma propriedade",
-        "operationId" : "buscar_2",
+        "operationId" : "buscar_1",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -77,7 +77,7 @@
         } ],
         "responses" : {
           "404" : {
-            "description" : "Propriedade nÃ£o encontrada, ou de outro tenant (PROPRIEDADE_NAO_ENCONTRADA)",
+            "description" : "Propriedade não encontrada, ou de outro tenant (PROPRIEDADE_NAO_ENCONTRADA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -91,7 +91,7 @@
       "put" : {
         "tags" : [ "propriedade" ],
         "summary" : "Atualiza dados cadastrais da propriedade",
-        "description" : "RN-03-07: troca de proprietÃ¡rio rejeitada com agenciamento vigente",
+        "description" : "RN-03-07: troca de proprietário rejeitada com agenciamento vigente",
         "operationId" : "atualizar_1",
         "parameters" : [ {
           "name" : "id",
@@ -114,7 +114,7 @@
         },
         "responses" : {
           "422" : {
-            "description" : "ProprietÃ¡rio invÃ¡lido, ou agenciamento vigente bloqueia a troca (PROPRIEDADE_PROPRIETARIO_INVALIDO, PROPRIEDADE_COM_AGENCIAMENTO_VIGENTE)",
+            "description" : "Proprietário inválido, ou agenciamento vigente bloqueia a troca (PROPRIEDADE_PROPRIETARIO_INVALIDO, PROPRIEDADE_COM_AGENCIAMENTO_VIGENTE)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -130,7 +130,7 @@
       "get" : {
         "tags" : [ "pessoa" ],
         "summary" : "Detalha uma pessoa",
-        "operationId" : "buscar_3",
+        "operationId" : "buscar_2",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -142,7 +142,7 @@
         } ],
         "responses" : {
           "404" : {
-            "description" : "Pessoa nÃ£o encontrada, ou de outro tenant (PESSOA_NAO_ENCONTRADA)",
+            "description" : "Pessoa não encontrada, ou de outro tenant (PESSOA_NAO_ENCONTRADA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -178,7 +178,7 @@
         },
         "responses" : {
           "409" : {
-            "description" : "E-mail jÃ¡ cadastrado no tenant (PESSOA_EMAIL_DUPLICADO)",
+            "description" : "E-mail já cadastrado no tenant (PESSOA_EMAIL_DUPLICADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -193,8 +193,8 @@
     "/api/v1/orcamentos/{id}" : {
       "get" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Detalha um orÃ§amento",
-        "operationId" : "buscar_4",
+        "summary" : "Detalha um orçamento",
+        "operationId" : "buscar_3",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -206,7 +206,7 @@
         } ],
         "responses" : {
           "404" : {
-            "description" : "OrÃ§amento nÃ£o encontrado, ou de outro tenant (ORCAMENTO_NAO_ENCONTRADO)",
+            "description" : "Orçamento não encontrado, ou de outro tenant (ORCAMENTO_NAO_ENCONTRADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -219,7 +219,7 @@
       },
       "put" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Atualiza os itens de um orÃ§amento em RASCUNHO",
+        "summary" : "Atualiza os itens de um orçamento em RASCUNHO",
         "description" : "RN-05-04",
         "operationId" : "atualizar_3",
         "parameters" : [ {
@@ -242,8 +242,8 @@
           "required" : true
         },
         "responses" : {
-          "400" : {
-            "description" : "Propriedade repetida entre os itens (ORCAMENTO_ITEM_DUPLICADO)",
+          "422" : {
+            "description" : "Orçamento fora de RASCUNHO, ou propriedade inexistente (ORCAMENTO_NAO_EDITAVEL, ORCAMENTO_PROPRIEDADE_INDISPONIVEL)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -252,8 +252,8 @@
               }
             }
           },
-          "422" : {
-            "description" : "OrÃ§amento fora de RASCUNHO, ou propriedade inexistente (ORCAMENTO_NAO_EDITAVEL, ORCAMENTO_PROPRIEDADE_INDISPONIVEL)",
+          "400" : {
+            "description" : "Propriedade repetida entre os itens (ORCAMENTO_ITEM_DUPLICADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -352,11 +352,11 @@
           "required" : true
         },
         "responses" : {
-          "422" : {
-            "description" : "ProprietÃ¡rio invÃ¡lido â precisa estar ativo e ter papel PROPRIETARIO (PROPRIEDADE_PROPRIETARIO_INVALIDO)"
-          },
           "201" : {
             "description" : "Propriedade criada"
+          },
+          "422" : {
+            "description" : "Proprietário inválido — precisa estar ativo e ter papel PROPRIETARIO (PROPRIEDADE_PROPRIETARIO_INVALIDO)"
           }
         }
       }
@@ -365,7 +365,7 @@
       "post" : {
         "tags" : [ "propriedade" ],
         "summary" : "Marca a propriedade como vendida",
-        "description" : "RN-03-06/11 â marcaÃ§Ã£o manual, sem dado financeiro",
+        "description" : "RN-03-06/11 — marcação manual, sem dado financeiro",
         "operationId" : "vender",
         "parameters" : [ {
           "name" : "id",
@@ -378,7 +378,7 @@
         } ],
         "responses" : {
           "422" : {
-            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "description" : "Transição inválida a partir da situação atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -407,7 +407,7 @@
         } ],
         "responses" : {
           "422" : {
-            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "description" : "Transição inválida a partir da situação atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -436,7 +436,7 @@
         } ],
         "responses" : {
           "422" : {
-            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "description" : "Transição inválida a partir da situação atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -463,7 +463,7 @@
         } ],
         "responses" : {
           "422" : {
-            "description" : "TransiÃ§Ã£o invÃ¡lida a partir da situaÃ§Ã£o atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
+            "description" : "Transição inválida a partir da situação atual (PROPRIEDADE_TRANSICAO_INVALIDA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -478,7 +478,7 @@
     "/api/v1/plataforma/imobiliarias" : {
       "post" : {
         "tags" : [ "imobiliaria" ],
-        "summary" : "Provisiona uma nova imobiliÃ¡ria (tenant)",
+        "summary" : "Provisiona uma nova imobiliária (tenant)",
         "description" : "RN-00-06/07/08",
         "operationId" : "criar_1",
         "requestBody" : {
@@ -492,14 +492,14 @@
           "required" : true
         },
         "responses" : {
-          "400" : {
-            "description" : "Payload invÃ¡lido â CNPJ ou slug mal formado (IMOBILIARIA_CNPJ_INVALIDO, IMOBILIARIA_SLUG_INVALIDO)"
-          },
           "201" : {
-            "description" : "ImobiliÃ¡ria criada"
+            "description" : "Imobiliária criada"
+          },
+          "400" : {
+            "description" : "Payload inválido — CNPJ ou slug mal formado (IMOBILIARIA_CNPJ_INVALIDO, IMOBILIARIA_SLUG_INVALIDO)"
           },
           "409" : {
-            "description" : "CNPJ ou slug jÃ¡ cadastrado (IMOBILIARIA_CNPJ_DUPLICADO, IMOBILIARIA_SLUG_DUPLICADO)"
+            "description" : "CNPJ ou slug já cadastrado (IMOBILIARIA_CNPJ_DUPLICADO, IMOBILIARIA_SLUG_DUPLICADO)"
           }
         }
       }
@@ -577,20 +577,20 @@
           "required" : true
         },
         "responses" : {
-          "403" : {
-            "description" : "Sem papel ADMINISTRADOR"
-          },
-          "400" : {
-            "description" : "Documento invÃ¡lido (PESSOA_DOCUMENTO_INVALIDO)"
-          },
           "201" : {
             "description" : "Pessoa criada"
+          },
+          "400" : {
+            "description" : "Documento inválido (PESSOA_DOCUMENTO_INVALIDO)"
           },
           "401" : {
             "description" : "Sem token"
           },
+          "403" : {
+            "description" : "Sem papel ADMINISTRADOR"
+          },
           "409" : {
-            "description" : "Documento ou e-mail jÃ¡ cadastrado no tenant (PESSOA_DOCUMENTO_DUPLICADO, PESSOA_EMAIL_DUPLICADO)"
+            "description" : "Documento ou e-mail já cadastrado no tenant (PESSOA_DOCUMENTO_DUPLICADO, PESSOA_EMAIL_DUPLICADO)"
           }
         }
       }
@@ -621,8 +621,8 @@
           "required" : true
         },
         "responses" : {
-          "422" : {
-            "description" : "E-mail obrigatÃ³rio para USUARIO/ADMINISTRADOR (PESSOA_EMAIL_OBRIGATORIO)",
+          "409" : {
+            "description" : "Papel já atribuído ou e-mail duplicado (PESSOA_PAPEL_JA_ATRIBUIDO, PESSOA_EMAIL_DUPLICADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -631,8 +631,8 @@
               }
             }
           },
-          "409" : {
-            "description" : "Papel jÃ¡ atribuÃ­do ou e-mail duplicado (PESSOA_PAPEL_JA_ATRIBUIDO, PESSOA_EMAIL_DUPLICADO)",
+          "422" : {
+            "description" : "E-mail obrigatório para USUARIO/ADMINISTRADOR (PESSOA_EMAIL_OBRIGATORIO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -674,7 +674,7 @@
             "description" : "Pessoa inativada"
           },
           "422" : {
-            "description" : "Ãltimo ADMINISTRADOR ativo nÃ£o pode ser inativado (PESSOA_ULTIMO_ADMINISTRADOR)"
+            "description" : "Último ADMINISTRADOR ativo não pode ser inativado (PESSOA_ULTIMO_ADMINISTRADOR)"
           }
         }
       }
@@ -682,7 +682,7 @@
     "/api/v1/orcamentos" : {
       "get" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Lista orÃ§amentos do tenant",
+        "summary" : "Lista orçamentos do tenant",
         "description" : "filtros: pessoaId, status",
         "operationId" : "listar_2",
         "parameters" : [ {
@@ -724,7 +724,7 @@
       },
       "post" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Cria um orÃ§amento em RASCUNHO",
+        "summary" : "Cria um orçamento em RASCUNHO",
         "description" : "RN-05-01, RN-01-06",
         "operationId" : "criar_3",
         "requestBody" : {
@@ -739,7 +739,7 @@
         },
         "responses" : {
           "201" : {
-            "description" : "OrÃ§amento criado"
+            "description" : "Orçamento criado"
           },
           "422" : {
             "description" : "Pessoa inativa, ou propriedade inexistente no tenant (PESSOA_INATIVA_NAO_RECEBE_ORCAMENTO, ORCAMENTO_PROPRIEDADE_INDISPONIVEL)"
@@ -750,7 +750,7 @@
     "/api/v1/orcamentos/{id}/recusa" : {
       "post" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Registra a recusa do orÃ§amento pelo proprietÃ¡rio",
+        "summary" : "Registra a recusa do orçamento pelo proprietário",
         "description" : "RN-05-02",
         "operationId" : "recusar",
         "parameters" : [ {
@@ -764,7 +764,7 @@
         } ],
         "responses" : {
           "422" : {
-            "description" : "OrÃ§amento nÃ£o estÃ¡ ENVIADO com validade vigente (ORCAMENTO_EXPIRADO_OU_RECUSADO)",
+            "description" : "Orçamento não está ENVIADO com validade vigente (ORCAMENTO_EXPIRADO_OU_RECUSADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -779,7 +779,7 @@
     "/api/v1/orcamentos/{id}/envio" : {
       "post" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Envia o orÃ§amento ao proprietÃ¡rio",
+        "summary" : "Envia o orçamento ao proprietário",
         "description" : "RN-05-03/08",
         "operationId" : "enviar",
         "parameters" : [ {
@@ -793,7 +793,7 @@
         } ],
         "responses" : {
           "422" : {
-            "description" : "OrÃ§amento fora de RASCUNHO, propriedade indisponÃ­vel/de outro dono, ou comissÃ£o acima do teto (ORCAMENTO_NAO_EDITAVEL, ORCAMENTO_PROPRIEDADE_INDISPONIVEL, ORCAMENTO_COMISSAO_ACIMA_DO_TETO)",
+            "description" : "Orçamento fora de RASCUNHO, propriedade indisponível/de outro dono, ou comissão acima do teto (ORCAMENTO_NAO_EDITAVEL, ORCAMENTO_PROPRIEDADE_INDISPONIVEL, ORCAMENTO_COMISSAO_ACIMA_DO_TETO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -808,7 +808,7 @@
     "/api/v1/orcamentos/{id}/duplicacao" : {
       "post" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Duplica o orÃ§amento em uma nova versÃ£o RASCUNHO",
+        "summary" : "Duplica o orçamento em uma nova versão RASCUNHO",
         "description" : "RN-05-07",
         "operationId" : "duplicar",
         "parameters" : [ {
@@ -822,7 +822,7 @@
         } ],
         "responses" : {
           "201" : {
-            "description" : "Nova versÃ£o criada, independente do status do original"
+            "description" : "Nova versão criada, independente do status do original"
           }
         }
       }
@@ -830,7 +830,7 @@
     "/api/v1/orcamentos/{id}/aceite" : {
       "post" : {
         "tags" : [ "orcamento" ],
-        "summary" : "Registra a aceitaÃ§Ã£o do orÃ§amento pelo proprietÃ¡rio",
+        "summary" : "Registra a aceitação do orçamento pelo proprietário",
         "description" : "RN-05-05, RN-05-07",
         "operationId" : "aceitar",
         "parameters" : [ {
@@ -844,7 +844,7 @@
         } ],
         "responses" : {
           "422" : {
-            "description" : "OrÃ§amento nÃ£o estÃ¡ ENVIADO com validade vigente (ORCAMENTO_EXPIRADO_OU_RECUSADO)",
+            "description" : "Orçamento não está ENVIADO com validade vigente (ORCAMENTO_EXPIRADO_OU_RECUSADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -909,7 +909,7 @@
       },
       "post" : {
         "tags" : [ "contrato" ],
-        "summary" : "Cria um contrato em RASCUNHO a partir de um orÃ§amento aceito",
+        "summary" : "Cria um contrato em RASCUNHO a partir de um orçamento aceito",
         "description" : "RN-06-01/02, RN-05-05",
         "operationId" : "criar_4",
         "requestBody" : {
@@ -923,17 +923,17 @@
           "required" : true
         },
         "responses" : {
-          "422" : {
-            "description" : "OrÃ§amento nÃ£o aceito, ou propriedade do orÃ§amento nÃ£o pertence mais ao proprietÃ¡rio (ORCAMENTO_NAO_ACEITO, PROPRIEDADE_PROPRIETARIO_DIVERGENTE)"
-          },
-          "400" : {
-            "description" : "VigÃªncia invÃ¡lida (CONTRATO_VIGENCIA_INVALIDA)"
-          },
           "201" : {
             "description" : "Contrato criado"
           },
+          "422" : {
+            "description" : "Orçamento não aceito, ou propriedade do orçamento não pertence mais ao proprietário (ORCAMENTO_NAO_ACEITO, PROPRIEDADE_PROPRIETARIO_DIVERGENTE)"
+          },
           "409" : {
-            "description" : "OrÃ§amento jÃ¡ originou outro contrato (ORCAMENTO_JA_ORIGINOU_CONTRATO)"
+            "description" : "Orçamento já originou outro contrato (ORCAMENTO_JA_ORIGINOU_CONTRATO)"
+          },
+          "400" : {
+            "description" : "Vigência inválida (CONTRATO_VIGENCIA_INVALIDA)"
           }
         }
       }
@@ -965,7 +965,7 @@
         },
         "responses" : {
           "422" : {
-            "description" : "Contrato nÃ£o estÃ¡ ATIVO (CONTRATO_TRANSICAO_INVALIDA)",
+            "description" : "Contrato não está ATIVO (CONTRATO_TRANSICAO_INVALIDA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -980,7 +980,7 @@
     "/api/v1/contratos/{id}/cancelamento" : {
       "post" : {
         "tags" : [ "contrato" ],
-        "summary" : "Cancela um contrato RASCUNHO ou ATIVO sem negociaÃ§Ã£o em andamento",
+        "summary" : "Cancela um contrato RASCUNHO ou ATIVO sem negociação em andamento",
         "description" : "RN-06-10",
         "operationId" : "cancelar",
         "parameters" : [ {
@@ -1022,8 +1022,8 @@
           }
         } ],
         "responses" : {
-          "409" : {
-            "description" : "VigÃªncia sobreposta a outro contrato ativo (CONTRATO_VIGENCIA_SOBREPOSTA)",
+          "422" : {
+            "description" : "Propriedade indisponível ou comissão acima do teto (CONTRATO_PROPRIEDADE_INDISPONIVEL, CONTRATO_COMISSAO_ACIMA_DO_TETO, CONTRATO_TRANSICAO_INVALIDA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1032,8 +1032,8 @@
               }
             }
           },
-          "422" : {
-            "description" : "Propriedade indisponÃ­vel ou comissÃ£o acima do teto (CONTRATO_PROPRIEDADE_INDISPONIVEL, CONTRATO_COMISSAO_ACIMA_DO_TETO, CONTRATO_TRANSICAO_INVALIDA)",
+          "409" : {
+            "description" : "Vigência sobreposta a outro contrato ativo (CONTRATO_VIGENCIA_SOBREPOSTA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1048,7 +1048,7 @@
     "/api/v1/contratos/{id}/aditivos" : {
       "post" : {
         "tags" : [ "contrato" ],
-        "summary" : "Registra inclusÃ£o, exclusÃ£o ou renegociaÃ§Ã£o de propriedade em contrato ATIVO",
+        "summary" : "Registra inclusão, exclusão ou renegociação de propriedade em contrato ATIVO",
         "description" : "RN-06-08/13",
         "operationId" : "registrarAditivo",
         "parameters" : [ {
@@ -1071,8 +1071,8 @@
           "required" : true
         },
         "responses" : {
-          "409" : {
-            "description" : "VigÃªncia sobreposta a outro contrato ativo (CONTRATO_VIGENCIA_SOBREPOSTA)",
+          "422" : {
+            "description" : "Propriedade indisponível, comissão acima do teto, contrato fora de ATIVO, ou propriedade não agenciada neste contrato (CONTRATO_PROPRIEDADE_INDISPONIVEL, CONTRATO_COMISSAO_ACIMA_DO_TETO, CONTRATO_TRANSICAO_INVALIDA, CONTRATO_AGENCIAMENTO_NAO_ENCONTRADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1081,8 +1081,8 @@
               }
             }
           },
-          "422" : {
-            "description" : "Propriedade indisponÃ­vel, comissÃ£o acima do teto, contrato fora de ATIVO, ou propriedade nÃ£o agenciada neste contrato (CONTRATO_PROPRIEDADE_INDISPONIVEL, CONTRATO_COMISSAO_ACIMA_DO_TETO, CONTRATO_TRANSICAO_INVALIDA, CONTRATO_AGENCIAMENTO_NAO_ENCONTRADO)",
+          "409" : {
+            "description" : "Vigência sobreposta a outro contrato ativo (CONTRATO_VIGENCIA_SOBREPOSTA)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1097,32 +1097,12 @@
     "/api/v1/tenant" : {
       "get" : {
         "tags" : [ "imobiliaria" ],
-        "summary" : "Identifica a imobiliÃ¡ria do token corrente",
-        "description" : "Somente leitura â a identidade do tenant Ã© definida no provisionamento (RN-00-06) e nÃ£o tem endpoint de alteraÃ§Ã£o",
-        "operationId" : "buscar",
+        "summary" : "Identifica a imobiliária do token corrente",
+        "description" : "Somente leitura — a identidade do tenant é definida no provisionamento (RN-00-06) e não tem endpoint de alteração",
+        "operationId" : "buscar_4",
         "responses" : {
-          "403" : {
-            "description" : "Sem papel USUARIO ou ADMINISTRADOR",
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/TenantResponse"
-                }
-              }
-            }
-          },
           "200" : {
-            "description" : "ImobiliÃ¡ria do tenant corrente",
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/TenantResponse"
-                }
-              }
-            }
-          },
-          "404" : {
-            "description" : "Tenant do token nÃ£o existe (TENANT_NAO_ENCONTRADO)",
+            "description" : "Imobiliária do tenant corrente",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1137,6 +1117,124 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Sem papel USUARIO ou ADMINISTRADOR",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Tenant do token não existe (TENANT_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mapa/propriedades" : {
+      "get" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Lista propriedades geocodificadas do tenant dentro de um bounding box",
+        "description" : "RN-07-01..05. Sem paginação tradicional: RN-07-04 substitui page/size por bounding box e teto fixo de 500 resultados — acima disso, o campo `limitado` sinaliza que a resposta foi cortada.",
+        "operationId" : "listar_4",
+        "parameters" : [ {
+          "name" : "bbox",
+          "in" : "query",
+          "description" : "minLat,minLon,maxLat,maxLon",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "-23.60,-46.70,-23.50,-46.60"
+        }, {
+          "name" : "situacao",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "DISPONIVEL", "AGENCIADA", "RESERVADA", "VENDIDA", "RETIRADA" ]
+          }
+        }, {
+          "name" : "statusContrato",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "RASCUNHO", "ATIVO", "ENCERRADO", "CANCELADO", "EXPIRADO" ]
+          }
+        }, {
+          "name" : "valorMin",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "number",
+            "example" : 100000.0
+          },
+          "example" : 100000.0
+        }, {
+          "name" : "valorMax",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "number",
+            "example" : 900000.0
+          },
+          "example" : 900000.0
+        }, {
+          "name" : "localidade",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "uf",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "example" : "SP"
+          },
+          "example" : "SP"
+        }, {
+          "name" : "proprietarioId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Propriedades dentro do bounding box, já filtradas",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MapaResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "bbox ausente, malformado ou com min >= max (BOUNDING_BOX_INVALIDO); ou valor de enum inválido em situacao/statusContrato (PARAMETRO_INVALIDO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MapaResponse"
                 }
               }
             }
@@ -1160,7 +1258,7 @@
         } ],
         "responses" : {
           "404" : {
-            "description" : "Contrato nÃ£o encontrado, ou de outro tenant (CONTRATO_NAO_ENCONTRADO)",
+            "description" : "Contrato não encontrado, ou de outro tenant (CONTRATO_NAO_ENCONTRADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1175,13 +1273,13 @@
     "/api/v1/ceps/{cep}" : {
       "get" : {
         "tags" : [ "propriedade" ],
-        "summary" : "Consulta endereÃ§o por CEP",
-        "description" : "RN-03-02/04, RN-04-01/03 â resultado cacheado pela janela do tenant",
+        "summary" : "Consulta endereço por CEP",
+        "description" : "RN-03-02/04, RN-04-01/03 — resultado cacheado pela janela do tenant",
         "operationId" : "consultar",
         "parameters" : [ {
           "name" : "cep",
           "in" : "path",
-          "description" : "8 dÃ­gitos, com ou sem mÃ¡scara",
+          "description" : "8 dígitos, com ou sem máscara",
           "required" : true,
           "schema" : {
             "type" : "string",
@@ -1189,8 +1287,8 @@
           }
         } ],
         "responses" : {
-          "502" : {
-            "description" : "Fornecedor de CEP indisponÃ­vel (CEP_PROVEDOR_INDISPONIVEL)",
+          "200" : {
+            "description" : "Consulta concluída — verificar campo encontrado; CEP inexistente não é erro (CEP_NAO_ENCONTRADO)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1199,8 +1297,8 @@
               }
             }
           },
-          "200" : {
-            "description" : "Consulta concluÃ­da â verificar campo encontrado; CEP inexistente nÃ£o Ã© erro (CEP_NAO_ENCONTRADO)",
+          "502" : {
+            "description" : "Fornecedor de CEP indisponível (CEP_PROVEDOR_INDISPONIVEL)",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1240,7 +1338,7 @@
             "description" : "Papel removido"
           },
           "422" : {
-            "description" : "Ãltimo ADMINISTRADOR ativo nÃ£o pode ser removido (PESSOA_ULTIMO_ADMINISTRADOR)"
+            "description" : "Último ADMINISTRADOR ativo não pode ser removido (PESSOA_ULTIMO_ADMINISTRADOR)"
           }
         }
       }
@@ -1249,14 +1347,12 @@
   "components" : {
     "schemas" : {
       "AtualizarParametrosRequest" : {
-        "required" : [ "cepCacheJanelaDias", "comissaoPercentualTeto", "fusoHorario", "geocodificacaoTentativasMax", "orcamentoValidadeDiasPadrao" ],
         "type" : "object",
         "properties" : {
           "comissaoPercentualTeto" : {
-            "minimum" : 0.01,
-            "exclusiveMinimum" : false,
             "type" : "number",
-            "example" : 6.0
+            "example" : 6.0,
+            "minimum" : 0.01
           },
           "orcamentoValidadeDiasPadrao" : {
             "type" : "integer",
@@ -1272,17 +1368,19 @@
           },
           "fusoHorario" : {
             "type" : "string",
-            "example" : "America/Sao_Paulo"
+            "example" : "America/Sao_Paulo",
+            "minLength" : 1
           }
-        }
+        },
+        "required" : [ "cepCacheJanelaDias", "comissaoPercentualTeto", "fusoHorario", "geocodificacaoTentativasMax", "orcamentoValidadeDiasPadrao" ]
       },
       "ParametrosResponse" : {
         "type" : "object",
         "properties" : {
           "comissaoPercentualTeto" : {
             "type" : "string",
-            "description" : "Percentual â string para nÃ£o perder precisÃ£o",
-            "example" : "6.0"
+            "description" : "Percentual — string para não perder precisão",
+            "example" : "6.00"
           },
           "orcamentoValidadeDiasPadrao" : {
             "type" : "integer",
@@ -1303,7 +1401,6 @@
         }
       },
       "AtualizarPropriedadeRequest" : {
-        "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ],
         "type" : "object",
         "properties" : {
           "proprietarioId" : {
@@ -1330,34 +1427,40 @@
           },
           "cep" : {
             "type" : "string",
-            "description" : "SÃ³ dÃ­gitos",
-            "example" : "01310100"
+            "description" : "Só dígitos",
+            "example" : "01310100",
+            "minLength" : 1
           },
           "logradouro" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           },
           "numero" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           },
           "complemento" : {
             "type" : "string"
           },
           "bairro" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           },
           "localidade" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           },
           "uf" : {
-            "maxLength" : 2,
-            "minLength" : 2,
             "type" : "string",
-            "example" : "SP"
+            "example" : "SP",
+            "maxLength" : 2,
+            "minLength" : 2
           },
           "enderecoValidado" : {
             "type" : "boolean"
           }
-        }
+        },
+        "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ]
       },
       "PropriedadeResponse" : {
         "type" : "object",
@@ -1434,16 +1537,18 @@
         }
       },
       "AtualizarPessoaRequest" : {
-        "required" : [ "nome" ],
         "type" : "object",
         "properties" : {
           "nome" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           },
           "email" : {
-            "type" : "string"
+            "type" : "string",
+            "format" : "email"
           }
-        }
+        },
+        "required" : [ "nome" ]
       },
       "PessoaResponse" : {
         "type" : "object",
@@ -1487,19 +1592,19 @@
         }
       },
       "AtualizarOrcamentoRequest" : {
-        "required" : [ "itens" ],
         "type" : "object",
         "properties" : {
           "itens" : {
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/OrcamentoItemRequest"
-            }
+            },
+            "minItems" : 1
           }
-        }
+        },
+        "required" : [ "itens" ]
       },
       "OrcamentoItemRequest" : {
-        "required" : [ "comissaoPercentual", "propriedadeId", "valorPedido" ],
         "type" : "object",
         "properties" : {
           "propriedadeId" : {
@@ -1514,7 +1619,8 @@
             "type" : "number",
             "example" : 450000.0
           }
-        }
+        },
+        "required" : [ "comissaoPercentual", "propriedadeId", "valorPedido" ]
       },
       "OrcamentoItemResponse" : {
         "type" : "object",
@@ -1573,7 +1679,6 @@
         }
       },
       "CriarPropriedadeRequest" : {
-        "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ],
         "type" : "object",
         "properties" : {
           "proprietarioId" : {
@@ -1602,62 +1707,70 @@
           },
           "cep" : {
             "type" : "string",
-            "description" : "SÃ³ dÃ­gitos",
-            "example" : "01310100"
+            "description" : "Só dígitos",
+            "example" : "01310100",
+            "minLength" : 1
           },
           "logradouro" : {
             "type" : "string",
-            "example" : "Av. Paulista"
+            "example" : "Av. Paulista",
+            "minLength" : 1
           },
           "numero" : {
             "type" : "string",
-            "example" : "1000"
+            "example" : "1000",
+            "minLength" : 1
           },
           "complemento" : {
             "type" : "string"
           },
           "bairro" : {
             "type" : "string",
-            "example" : "Bela Vista"
+            "example" : "Bela Vista",
+            "minLength" : 1
           },
           "localidade" : {
             "type" : "string",
-            "example" : "SÃ£o Paulo"
+            "example" : "São Paulo",
+            "minLength" : 1
           },
           "uf" : {
-            "maxLength" : 2,
-            "minLength" : 2,
             "type" : "string",
-            "example" : "SP"
+            "example" : "SP",
+            "maxLength" : 2,
+            "minLength" : 2
           },
           "enderecoValidado" : {
             "type" : "boolean",
-            "description" : "false quando o CEP nÃ£o foi encontrado na consulta feita por quem chamou"
+            "description" : "false quando o CEP não foi encontrado na consulta feita por quem chamou"
           }
-        }
+        },
+        "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ]
       },
       "CriarImobiliariaRequest" : {
-        "required" : [ "cnpj", "razaoSocial", "slug" ],
         "type" : "object",
         "properties" : {
           "razaoSocial" : {
             "type" : "string",
-            "example" : "Corretora Exemplo Ltda"
+            "example" : "Corretora Exemplo Ltda",
+            "minLength" : 1
           },
           "cnpj" : {
             "type" : "string",
-            "description" : "Com ou sem mÃ¡scara",
-            "example" : "11.222.333/0001-81"
+            "description" : "Com ou sem máscara",
+            "example" : "11.222.333/0001-81",
+            "minLength" : 1
           },
           "slug" : {
             "type" : "string",
-            "description" : "MinÃºsculo, sem espaÃ§o, usado em URL administrativa",
-            "example" : "corretora-exemplo"
+            "description" : "Minúsculo, sem espaço, usado em URL administrativa",
+            "example" : "corretora-exemplo",
+            "minLength" : 1
           }
-        }
+        },
+        "required" : [ "cnpj", "razaoSocial", "slug" ]
       },
       "CriarPessoaRequest" : {
-        "required" : [ "documento", "nome", "tipoDocumento" ],
         "type" : "object",
         "properties" : {
           "tipoDocumento" : {
@@ -1666,18 +1779,21 @@
           },
           "documento" : {
             "type" : "string",
-            "example" : "52998224725"
+            "example" : "52998224725",
+            "minLength" : 1
           },
           "nome" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           },
           "email" : {
-            "type" : "string"
+            "type" : "string",
+            "format" : "email"
           }
-        }
+        },
+        "required" : [ "documento", "nome", "tipoDocumento" ]
       },
       "AtribuirPapelRequest" : {
-        "required" : [ "papel" ],
         "type" : "object",
         "properties" : {
           "papel" : {
@@ -1685,12 +1801,13 @@
             "enum" : [ "PROPRIETARIO", "USUARIO", "ADMINISTRADOR" ]
           },
           "email" : {
-            "type" : "string"
+            "type" : "string",
+            "format" : "email"
           }
-        }
+        },
+        "required" : [ "papel" ]
       },
       "CriarOrcamentoRequest" : {
-        "required" : [ "itens", "pessoaId" ],
         "type" : "object",
         "properties" : {
           "pessoaId" : {
@@ -1701,12 +1818,13 @@
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/OrcamentoItemRequest"
-            }
+            },
+            "minItems" : 1
           }
-        }
+        },
+        "required" : [ "itens", "pessoaId" ]
       },
       "CriarContratoRequest" : {
-        "required" : [ "orcamentoId", "regrasContratuais", "vigenciaFim", "vigenciaInicio" ],
         "type" : "object",
         "properties" : {
           "orcamentoId" : {
@@ -1724,18 +1842,21 @@
             "example" : "2026-12-31"
           },
           "regrasContratuais" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           }
-        }
+        },
+        "required" : [ "orcamentoId", "regrasContratuais", "vigenciaFim", "vigenciaInicio" ]
       },
       "EncerramentoRequest" : {
-        "required" : [ "justificativa" ],
         "type" : "object",
         "properties" : {
           "justificativa" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           }
-        }
+        },
+        "required" : [ "justificativa" ]
       },
       "AditivoResponse" : {
         "type" : "object",
@@ -1830,7 +1951,6 @@
         }
       },
       "AditivoRequest" : {
-        "required" : [ "justificativa", "propriedadeId", "tipo" ],
         "type" : "object",
         "properties" : {
           "tipo" : {
@@ -1842,7 +1962,8 @@
             "format" : "uuid"
           },
           "justificativa" : {
-            "type" : "string"
+            "type" : "string",
+            "minLength" : 1
           },
           "comissaoPercentual" : {
             "type" : "number",
@@ -1855,7 +1976,8 @@
           "camposDeInclusaoPreenchidos" : {
             "type" : "boolean"
           }
-        }
+        },
+        "required" : [ "justificativa", "propriedadeId", "tipo" ]
       },
       "TenantResponse" : {
         "type" : "object",
@@ -1879,14 +2001,14 @@
         "type" : "object",
         "properties" : {
           "page" : {
-            "minimum" : 0,
             "type" : "integer",
-            "format" : "int32"
+            "format" : "int32",
+            "minimum" : 0
           },
           "size" : {
-            "minimum" : 1,
             "type" : "integer",
-            "format" : "int32"
+            "format" : "int32",
+            "minimum" : 1
           },
           "sort" : {
             "type" : "array",
@@ -2055,6 +2177,57 @@
           "totalPages" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }
+      },
+      "MapaPropriedadeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "proprietarioId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "situacao" : {
+            "type" : "string"
+          },
+          "valorReferencia" : {
+            "type" : "string"
+          },
+          "logradouro" : {
+            "type" : "string"
+          },
+          "localidade" : {
+            "type" : "string"
+          },
+          "uf" : {
+            "type" : "string"
+          },
+          "latitude" : {
+            "type" : "number"
+          },
+          "longitude" : {
+            "type" : "number"
+          },
+          "statusContrato" : {
+            "type" : "string"
+          }
+        }
+      },
+      "MapaResponse" : {
+        "type" : "object",
+        "properties" : {
+          "propriedades" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MapaPropriedadeResponse"
+            }
+          },
+          "limitado" : {
+            "type" : "boolean"
           }
         }
       },

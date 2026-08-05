@@ -4,7 +4,7 @@
 > Projeto de portfólio: a ênfase é clareza arquitetural e justificativa de decisão, não quantidade de features.
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=flat&logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=flat&logo=springboot&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?style=flat&logo=springboot&logoColor=white)
 ![Spring Modulith](https://img.shields.io/badge/Spring_Modulith-modular_monolith-6DB33F?style=flat&logo=spring&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat&logo=postgresql&logoColor=white)
 ![Keycloak](https://img.shields.io/badge/Keycloak-25-4D4D4D?style=flat&logo=keycloak&logoColor=white)
@@ -283,6 +283,7 @@ Fora do diagrama por não se relacionarem com nada acima: `cep_cache` (sem `tena
 | POST | `/api/v1/contratos/{id}/encerramento` | `USUARIO`, `ADMIN` | `ATIVO → ENCERRADO` — distrato antecipado, exige justificativa |
 | POST | `/api/v1/contratos/{id}/cancelamento` | `USUARIO`, `ADMIN` | `→ CANCELADO` — rejeitado se alguma propriedade estiver `RESERVADA`/`VENDIDA` |
 | POST | `/api/v1/contratos/{id}/aditivos` | `USUARIO`, `ADMIN` | Inclusão, exclusão ou renegociação de propriedade em contrato `ATIVO` |
+| GET | `/api/v1/mapa/propriedades` | `USUARIO`, `ADMIN` | Bounding box + filtros combináveis — sem paginação tradicional; acima de 500 resultados, `limitado: true` sinaliza corte |
 
 `ADMIN` = `ADMINISTRADOR`. \* `GET /pessoas/{id}` aceita `USUARIO`; o `PUT` exige `ADMINISTRADOR`.
 
@@ -337,6 +338,9 @@ Registro completo (17 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Expiração por poll a cada 5 min, não cron fixo | "Diário às 00:05 no fuso do tenant" é irrealizável com um cron de JVM assim que dois tenants têm fusos diferentes. O job cruza tenants, resolve o fuso de cada um no laço e compara por `LocalDate` — idempotente em qualquer cadência (ADR-16) |
 | Vigência: duas colunas `date` + `daterange` gerado pelo banco | Sem precedente de range type em JPA no projeto — apostar a primeira tentativa na entidade que sustenta o `EXCLUDE` (RN-06-05) era risco desnecessário. A coluna gerada existe só para a constraint e para `JdbcClient`, nunca mapeada (ADR-17) |
 | Conflito de vigência: pré-check antes do flush **e** captura das duas falhas do banco | O pré-check dá mensagem rica nos casos não concorrentes. Sob corrida real o Postgres falha de dois jeitos — `exclusion_violation` quando o rival já commitou, `deadlock` quando ambos checam a constraint em voo — e os dois significam o mesmo fato de negócio (ADR-17) |
+| Mapa sem módulo próprio — `MapaQueryRepository` dentro de `propriedade/infra`, com `JOIN` cru contra `agenciamento`/`contrato` | Primeiro épico sem entidade de ciclo de vida próprio: é consulta agregada sobre `propriedade`, que já existe desde o 03. `ApplicationModules.verify()` só enxerga import Java, não SQL — o mesmo padrão que `propriedadesComAgenciamentoVigenteDeTodosOsTenants()` já usava |
+| Filtro `statusContrato` do mapa junta pelo agenciamento mais recente da propriedade, não por `contrato_ativo = true` | Restringir a `contrato_ativo` faria `ENCERRADO`/`CANCELADO` nunca aparecer no filtro — essas linhas já têm a flag `false` por sincronização (Épico 06). `situacao` do imóvel e status do contrato divergem de propósito no domínio (ex. `vender()` não depende do contrato encerrar) |
+| Teto de 500 do mapa sem `COUNT(*)` — `LIMIT 501`, truncado na aplicação, `limitado: boolean` na resposta | Contagem exata via `COUNT(*) OVER()` forçaria varrer todo o bounding box antes do `LIMIT` cortar — o custo que o `LIMIT` deveria evitar. Resultado prático: 1 query, não as 2 (contagem + conteúdo) que toda listagem paginada usa |
 
 ---
 
@@ -353,6 +357,6 @@ Construído por épicos, cada um fechado com teste e documentação antes do pr�
 | 04 — Geolocalização | Cache de CEP, geocodificação assíncrona com retry e backoff | ✅ |
 | 05 — Orçamentos | Módulo `orcamento`, proposta comercial que antecede o contrato | ✅ |
 | 06 — Contratos | Módulo `contrato`, exclusividade de agenciamento via `EXCLUDE`, aditivos | ✅ |
-| 07 — Mapa | Bounding box, filtros geográficos | Planejado |
+| 07 — Mapa | Bounding box + filtros combináveis dentro de `propriedade`, sem módulo nem migration novos | ✅ |
 | 08 — Painel operacional | Consultas agregadas | Planejado |
 | 09 — Auditoria | Histórico de transição e snapshot de contrato | Planejado |
