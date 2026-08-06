@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.administradorDoTenant;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -92,6 +93,27 @@ class MapaApiIT extends AbstractIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.propriedades.length()").value(1))
                     .andExpect(jsonPath("$.propriedades[0].id").value(retiradaId.toString()));
+        }
+
+        @Test
+        @DisplayName("situacao é repetível: combina mais de uma situação na mesma consulta")
+        void situacaoRepetivelCombinaMaisDeUma() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            UUID proprietarioId = fixture.criarProprietario(tenantId);
+            UUID retiradaId = mapaFixture.criarGeocodificada(tenantId, proprietarioId, LAT_DENTRO, LON_DENTRO,
+                    SituacaoPropriedade.RETIRADA);
+            UUID agenciadaId = mapaFixture.criarGeocodificada(tenantId, proprietarioId, LAT_DENTRO, LON_DENTRO,
+                    SituacaoPropriedade.AGENCIADA);
+            mapaFixture.criarGeocodificada(tenantId, proprietarioId, LAT_DENTRO, LON_DENTRO, SituacaoPropriedade.DISPONIVEL);
+
+            mockMvc.perform(get("/api/v1/mapa/propriedades")
+                            .param("bbox", BBOX_SAO_PAULO)
+                            .param("situacao", "RETIRADA", "AGENCIADA")
+                            .with(administradorDoTenant(tenantId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.propriedades.length()").value(2))
+                    .andExpect(jsonPath("$.propriedades[*].id",
+                            containsInAnyOrder(retiradaId.toString(), agenciadaId.toString())));
         }
 
         @Test

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,14 +35,16 @@ public class MapaController {
     @GetMapping("/propriedades")
     @Operation(summary = "Lista propriedades geocodificadas do tenant dentro de um bounding box",
             description = "RN-07-01..05. Sem paginação tradicional: RN-07-04 substitui page/size por bounding box "
-                    + "e teto fixo de 500 resultados — acima disso, o campo `limitado` sinaliza que a resposta foi cortada.")
+                    + "e teto fixo de 500 resultados — acima disso, o campo `limitado` sinaliza que a resposta foi cortada. "
+                    + "`situacao` é repetível (`?situacao=DISPONIVEL&situacao=AGENCIADA`) para combinar mais de uma "
+                    + "situação na mesma consulta; ausente, vale o default de RN-07-03.")
     @ApiResponse(responseCode = "200", description = "Propriedades dentro do bounding box, já filtradas")
     @ApiResponse(responseCode = "400", description = "bbox ausente, malformado ou com min >= max (BOUNDING_BOX_INVALIDO); "
             + "ou valor de enum inválido em situacao/statusContrato (PARAMETRO_INVALIDO)")
     public MapaResponse listar(
             @Parameter(example = "-23.60,-46.70,-23.50,-46.60", description = "minLat,minLon,maxLat,maxLon")
             @RequestParam String bbox,
-            @RequestParam(required = false) SituacaoPropriedade situacao,
+            @RequestParam(required = false) List<SituacaoPropriedade> situacao,
             @RequestParam(required = false) StatusContratoFiltro statusContrato,
             @RequestParam(required = false) @Schema(example = "100000.00") BigDecimal valorMin,
             @RequestParam(required = false) @Schema(example = "900000.00") BigDecimal valorMax,

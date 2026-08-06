@@ -20,5 +20,7 @@ public record AtualizarPropriedadeComando(
         String bairro,
         String localidade,
         String uf,
-        boolean enderecoValidado) {
+        boolean enderecoValidado,
+        BigDecimal latitude,
+        BigDecimal longitude) {
 }

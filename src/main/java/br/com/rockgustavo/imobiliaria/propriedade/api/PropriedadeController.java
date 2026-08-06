@@ -7,6 +7,8 @@ import br.com.rockgustavo.imobiliaria.propriedade.application.PropriedadeFiltro;
 import br.com.rockgustavo.imobiliaria.propriedade.application.PropriedadeService;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.SituacaoPropriedade;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeResumoView;
+import br.com.rockgustavo.imobiliaria.shared.geo.Coordenada;
+import br.com.rockgustavo.imobiliaria.shared.geo.EnderecoParaGeocodificar;
 import br.com.rockgustavo.imobiliaria.shared.web.PageResponse;
 import br.com.rockgustavo.imobiliaria.shared.web.PaginacaoSupport;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -86,8 +89,22 @@ public class PropriedadeController {
                 id, request.proprietarioId(), request.tipo(), request.areaPrivativa(), request.quartos(),
                 request.vagas(), request.valorReferencia(), request.cep(), request.logradouro(), request.numero(),
                 request.complemento(), request.bairro(), request.localidade(), request.uf(),
-                request.enderecoValidado());
+                request.enderecoValidado(), request.latitude(), request.longitude());
         return paraResponse(service.atualizar(comando));
+    }
+
+    @PostMapping("/geolocalizacao/pesquisar")
+    @Operation(summary = "Pesquisa a coordenada geográfica de um endereço, sem persistir",
+            description = "Usado para corrigir manualmente uma propriedade com geoSituacao=MANUAL: o front busca a "
+                    + "coordenada e, se encontrada, envia junto no PUT de atualização")
+    @ApiResponse(responseCode = "200", description = "Pesquisa concluída — 'encontrada' indica se houve resultado")
+    public PesquisarGeolocalizacaoResponse pesquisarGeolocalizacao(
+            @Valid @RequestBody PesquisarGeolocalizacaoRequest request) {
+        Optional<Coordenada> coordenada = service.pesquisarGeolocalizacao(new EnderecoParaGeocodificar(
+                request.cep(), request.logradouro(), request.numero(), request.bairro(), request.localidade(),
+                request.uf()));
+        return coordenada.map(PesquisarGeolocalizacaoResponse::encontrada)
+                .orElseGet(PesquisarGeolocalizacaoResponse::naoEncontrada);
     }
 
     @PostMapping("/{id}/retirada")

@@ -475,6 +475,36 @@
         }
       }
     },
+    "/api/v1/propriedades/geolocalizacao/pesquisar" : {
+      "post" : {
+        "tags" : [ "propriedade" ],
+        "summary" : "Pesquisa a coordenada geográfica de um endereço, sem persistir",
+        "description" : "Usado para corrigir manualmente uma propriedade com geoSituacao=MANUAL: o front busca a coordenada e, se encontrada, envia junto no PUT de atualização",
+        "operationId" : "pesquisarGeolocalizacao",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PesquisarGeolocalizacaoRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Pesquisa concluída — 'encontrada' indica se houve resultado",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PesquisarGeolocalizacaoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plataforma/imobiliarias" : {
       "post" : {
         "tags" : [ "imobiliaria" ],
@@ -1144,11 +1174,31 @@
         }
       }
     },
+    "/api/v1/painel/indicadores" : {
+      "get" : {
+        "tags" : [ "painel" ],
+        "summary" : "Indicadores operacionais do tenant corrente",
+        "description" : "RN-08-01..03. Comissão projetada soma apenas agenciamentos de contrato ATIVO com vigência corrente — é projeção, não receita realizada.",
+        "operationId" : "indicadores",
+        "responses" : {
+          "200" : {
+            "description" : "Indicadores calculados na data corrente do fuso do tenant",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PainelIndicadoresResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mapa/propriedades" : {
       "get" : {
         "tags" : [ "propriedade" ],
         "summary" : "Lista propriedades geocodificadas do tenant dentro de um bounding box",
-        "description" : "RN-07-01..05. Sem paginação tradicional: RN-07-04 substitui page/size por bounding box e teto fixo de 500 resultados — acima disso, o campo `limitado` sinaliza que a resposta foi cortada.",
+        "description" : "RN-07-01..05. Sem paginação tradicional: RN-07-04 substitui page/size por bounding box e teto fixo de 500 resultados — acima disso, o campo `limitado` sinaliza que a resposta foi cortada. `situacao` é repetível (`?situacao=DISPONIVEL&situacao=AGENCIADA`) para combinar mais de uma situação na mesma consulta; ausente, vale o default de RN-07-03.",
         "operationId" : "listar_4",
         "parameters" : [ {
           "name" : "bbox",
@@ -1164,8 +1214,11 @@
           "in" : "query",
           "required" : false,
           "schema" : {
-            "type" : "string",
-            "enum" : [ "DISPONIVEL", "AGENCIADA", "RESERVADA", "VENDIDA", "RETIRADA" ]
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "DISPONIVEL", "AGENCIADA", "RESERVADA", "VENDIDA", "RETIRADA" ]
+            }
           }
         }, {
           "name" : "statusContrato",
@@ -1458,6 +1511,16 @@
           },
           "enderecoValidado" : {
             "type" : "boolean"
+          },
+          "latitude" : {
+            "type" : "number",
+            "description" : "Corrige manualmente a geolocalização quando informada",
+            "example" : -23.561684
+          },
+          "longitude" : {
+            "type" : "number",
+            "description" : "Corrige manualmente a geolocalização quando informada",
+            "example" : -46.655981
           }
         },
         "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ]
@@ -1746,6 +1809,55 @@
           }
         },
         "required" : [ "bairro", "cep", "enderecoValidado", "localidade", "logradouro", "numero", "proprietarioId", "tipo", "uf", "valorReferencia" ]
+      },
+      "PesquisarGeolocalizacaoRequest" : {
+        "type" : "object",
+        "properties" : {
+          "cep" : {
+            "type" : "string",
+            "description" : "Só dígitos",
+            "example" : "01310100",
+            "minLength" : 1
+          },
+          "logradouro" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "numero" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "bairro" : {
+            "type" : "string"
+          },
+          "localidade" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "uf" : {
+            "type" : "string",
+            "example" : "SP",
+            "maxLength" : 2,
+            "minLength" : 2
+          }
+        },
+        "required" : [ "cep", "localidade", "logradouro", "numero", "uf" ]
+      },
+      "PesquisarGeolocalizacaoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "encontrada" : {
+            "type" : "boolean"
+          },
+          "latitude" : {
+            "type" : "number",
+            "example" : -23.561684
+          },
+          "longitude" : {
+            "type" : "number",
+            "example" : -46.655981
+          }
+        }
       },
       "CriarImobiliariaRequest" : {
         "type" : "object",
@@ -2116,6 +2228,66 @@
           "totalPages" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }
+      },
+      "FunilResponse" : {
+        "type" : "object",
+        "properties" : {
+          "lead" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "prospect" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "cliente" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "clienteInativo" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "PainelIndicadoresResponse" : {
+        "type" : "object",
+        "properties" : {
+          "contratosAtivos" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "contratosVencendoEm30Dias" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "imoveisPorSituacao" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "integer",
+              "format" : "int64"
+            },
+            "example" : {
+              "DISPONIVEL" : 12,
+              "AGENCIADA" : 8,
+              "RESERVADA" : 1,
+              "VENDIDA" : 3,
+              "RETIRADA" : 2
+            }
+          },
+          "orcamentosAguardandoResposta" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "funil" : {
+            "$ref" : "#/components/schemas/FunilResponse"
+          },
+          "comissaoProjetada" : {
+            "type" : "string",
+            "description" : "Soma projetada de comissão dos agenciamentos com contrato ATIVO e vigência corrente — é projeção, não receita realizada (RN-08-03)",
+            "example" : "125000.00"
           }
         }
       },

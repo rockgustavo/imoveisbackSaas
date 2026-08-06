@@ -52,6 +52,10 @@ public class GeocodificacaoService {
         }
     }
 
+    public Optional<Coordenada> pesquisar(EnderecoParaGeocodificar endereco) {
+        return geocodificacaoClient.geocodificar(endereco).filter(Coordenada::dentroDoTerritorioNacional);
+    }
+
     private static EnderecoParaGeocodificar paraEnderecoDeGeocodificacao(Propriedade propriedade) {
         Endereco endereco = propriedade.getEndereco();
         return new EnderecoParaGeocodificar(

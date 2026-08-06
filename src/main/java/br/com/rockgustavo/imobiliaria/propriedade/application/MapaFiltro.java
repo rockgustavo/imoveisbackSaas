@@ -4,11 +4,12 @@ import br.com.rockgustavo.imobiliaria.propriedade.domain.BoundingBox;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.SituacaoPropriedade;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record MapaFiltro(
         BoundingBox bbox,
-        SituacaoPropriedade situacao,
+        List<SituacaoPropriedade> situacoes,
         StatusContratoFiltro statusContrato,
         BigDecimal valorMin,
         BigDecimal valorMax,
@@ -17,9 +18,10 @@ public record MapaFiltro(
         UUID proprietarioId) {
 
     public MapaFiltro comSituacaoDefaultSeAusente(SituacaoPropriedade situacaoDefault) {
-        if (situacao != null) {
+        if (situacoes != null && !situacoes.isEmpty()) {
             return this;
         }
-        return new MapaFiltro(bbox, situacaoDefault, statusContrato, valorMin, valorMax, localidade, uf, proprietarioId);
+        return new MapaFiltro(bbox, List.of(situacaoDefault), statusContrato, valorMin, valorMax, localidade, uf,
+                proprietarioId);
     }
 }

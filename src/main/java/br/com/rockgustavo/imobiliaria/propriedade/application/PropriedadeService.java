@@ -10,6 +10,8 @@ import br.com.rockgustavo.imobiliaria.propriedade.domain.PropriedadeProprietario
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeQueryRepository;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeRepository;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeResumoView;
+import br.com.rockgustavo.imobiliaria.shared.geo.Coordenada;
+import br.com.rockgustavo.imobiliaria.shared.geo.EnderecoParaGeocodificar;
 import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -18,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -27,13 +30,16 @@ public class PropriedadeService {
     private final PropriedadeQueryRepository queryRepository;
     private final PessoaFacade pessoaFacade;
     private final ApplicationEventPublisher eventPublisher;
+    private final GeocodificacaoService geocodificacaoService;
 
     public PropriedadeService(PropriedadeRepository propriedadeRepository, PropriedadeQueryRepository queryRepository,
-                               PessoaFacade pessoaFacade, ApplicationEventPublisher eventPublisher) {
+                               PessoaFacade pessoaFacade, ApplicationEventPublisher eventPublisher,
+                               GeocodificacaoService geocodificacaoService) {
         this.propriedadeRepository = propriedadeRepository;
         this.queryRepository = queryRepository;
         this.pessoaFacade = pessoaFacade;
         this.eventPublisher = eventPublisher;
+        this.geocodificacaoService = geocodificacaoService;
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
@@ -65,10 +71,18 @@ public class PropriedadeService {
                 comando.bairro(), comando.localidade(), comando.uf(), comando.enderecoValidado());
         boolean enderecoMudou = propriedade.atualizar(comando.tipo(), comando.areaPrivativa(), comando.quartos(),
                 comando.vagas(), comando.valorReferencia(), endereco);
-        if (enderecoMudou) {
+        if (comando.latitude() != null && comando.longitude() != null) {
+            propriedade.concluirGeolocalizacao(comando.latitude(), comando.longitude());
+        } else if (enderecoMudou) {
             eventPublisher.publishEvent(new EnderecoAlterado(propriedade.getId(), TenantContext.obter()));
         }
         return paraDetalhe(propriedade);
+    }
+
+    @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
+    @Transactional(readOnly = true)
+    public Optional<Coordenada> pesquisarGeolocalizacao(EnderecoParaGeocodificar endereco) {
+        return geocodificacaoService.pesquisar(endereco);
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")

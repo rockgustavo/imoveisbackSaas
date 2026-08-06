@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
 import br.com.rockgustavo.imobiliaria.AbstractIntegrationTest;
+import br.com.rockgustavo.imobiliaria.shared.geo.TestGeoConfig;
 
 class PropriedadeApiIT extends AbstractIntegrationTest {
 
@@ -259,6 +260,97 @@ class PropriedadeApiIT extends AbstractIntegrationTest {
                             .content(corpoAtualizacao(pessoaComum)))
                     .andExpect(status().isUnprocessableEntity())
                     .andExpect(jsonPath("$.codigo").value("PROPRIEDADE_PROPRIETARIO_INVALIDO"));
+        }
+
+        @Test
+        @DisplayName("latitude/longitude informadas corrigem a geolocalização manualmente e marcam CONCLUIDA")
+        void latitudeLongitudeCorrigemGeolocalizacaoManualmente() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            UUID proprietarioId = fixture.criarProprietario(tenantId);
+            UUID id = fixture.criarPropriedade(tenantId, proprietarioId);
+            String corpo = """
+                    {"proprietarioId":"%s","tipo":"APARTAMENTO","areaPrivativa":85.50,"quartos":3,"vagas":1,
+                     "valorReferencia":450000.00,"cep":"01310100","logradouro":"Av. Paulista","numero":"1000",
+                     "bairro":"Bela Vista","localidade":"São Paulo","uf":"SP","enderecoValidado":true,
+                     "latitude":-23.561684,"longitude":-46.655981}
+                    """.formatted(proprietarioId);
+
+            mockMvc.perform(put("/api/v1/propriedades/{id}", id)
+                            .with(administradorDoTenant(tenantId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(corpo))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.geoSituacao").value("CONCLUIDA"))
+                    .andExpect(jsonPath("$.latitude").value(-23.561684))
+                    .andExpect(jsonPath("$.longitude").value(-46.655981));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /propriedades/geolocalizacao/pesquisar")
+    class PesquisaDeGeolocalizacao {
+
+        @Test
+        @DisplayName("endereço geocodificável retorna coordenada, sem persistir nada")
+        void enderecoGeocodificavelRetornaCoordenada() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            String corpo = """
+                    {"cep":"%s","logradouro":"Av. Paulista","numero":"1000","bairro":"Bela Vista",
+                     "localidade":"São Paulo","uf":"SP"}
+                    """.formatted(TestGeoConfig.CEP_GEOCODIFICAVEL);
+
+            mockMvc.perform(post("/api/v1/propriedades/geolocalizacao/pesquisar")
+                            .with(administradorDoTenant(tenantId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(corpo))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.encontrada").value(true))
+                    .andExpect(jsonPath("$.latitude").value(-23.561684))
+                    .andExpect(jsonPath("$.longitude").value(-46.655981));
+        }
+
+        @Test
+        @DisplayName("endereço não geocodificável retorna encontrada=false")
+        void enderecoNaoGeocodificavelRetornaNaoEncontrada() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            String corpo = """
+                    {"cep":"99999999","logradouro":"Rua Perdida","numero":"S/N","bairro":"Zona Rural",
+                     "localidade":"Cidade","uf":"SP"}
+                    """;
+
+            mockMvc.perform(post("/api/v1/propriedades/geolocalizacao/pesquisar")
+                            .with(administradorDoTenant(tenantId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(corpo))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.encontrada").value(false))
+                    .andExpect(jsonPath("$.latitude").doesNotExist())
+                    .andExpect(jsonPath("$.longitude").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("sem token retorna 401")
+        void semTokenRetorna401() throws Exception {
+            mockMvc.perform(post("/api/v1/propriedades/geolocalizacao/pesquisar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"cep":"01310100","logradouro":"Av. Paulista","numero":"1000",
+                                     "bairro":"Bela Vista","localidade":"São Paulo","uf":"SP"}
+                                    """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("sem papel USUARIO/ADMINISTRADOR retorna 403")
+        void semPapelRetorna403() throws Exception {
+            mockMvc.perform(post("/api/v1/propriedades/geolocalizacao/pesquisar")
+                            .with(jwt())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"cep":"01310100","logradouro":"Av. Paulista","numero":"1000",
+                                     "bairro":"Bela Vista","localidade":"São Paulo","uf":"SP"}
+                                    """))
+                    .andExpect(status().isForbidden());
         }
     }
 

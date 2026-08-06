@@ -68,6 +68,8 @@ br.com.rockgustavo.imobiliaria/
                       ┘    infra/                JPA (escrita) + JdbcClient (leitura)
 ```
 
+`painel/` foge dessa forma de propósito: só `api/` + `application/` + `infra/`, sem `domain/` nem `Facade` — é leitor terminal (ninguém consome painel), sem agregado próprio (ver linha do painel na tabela de decisões, abaixo).
+
 | Módulo | O que a `Facade` expõe, e para quem |
 |---|---|
 | `imobiliaria` | Parâmetros do tenant (teto de comissão, fuso, validade padrão) — consumida por todos |
@@ -283,7 +285,8 @@ Fora do diagrama por não se relacionarem com nada acima: `cep_cache` (sem `tena
 | POST | `/api/v1/contratos/{id}/encerramento` | `USUARIO`, `ADMIN` | `ATIVO → ENCERRADO` — distrato antecipado, exige justificativa |
 | POST | `/api/v1/contratos/{id}/cancelamento` | `USUARIO`, `ADMIN` | `→ CANCELADO` — rejeitado se alguma propriedade estiver `RESERVADA`/`VENDIDA` |
 | POST | `/api/v1/contratos/{id}/aditivos` | `USUARIO`, `ADMIN` | Inclusão, exclusão ou renegociação de propriedade em contrato `ATIVO` |
-| GET | `/api/v1/mapa/propriedades` | `USUARIO`, `ADMIN` | Bounding box + filtros combináveis — sem paginação tradicional; acima de 500 resultados, `limitado: true` sinaliza corte |
+| GET | `/api/v1/mapa/propriedades` | `USUARIO`, `ADMIN` | Bounding box + filtros combináveis — sem paginação tradicional; acima de 500 resultados, `limitado: true` sinaliza corte. `situacao` é repetível (`?situacao=A&situacao=B`), combina por `OR`; ausente usa o default de RN-07-03 |
+| GET | `/api/v1/painel/indicadores` | `USUARIO`, `ADMIN` | Contratos ativos/vencendo em 30 dias, imóveis por situação, orçamentos aguardando resposta, funil comercial e comissão projetada |
 
 `ADMIN` = `ADMINISTRADOR`. \* `GET /pessoas/{id}` aceita `USUARIO`; o `PUT` exige `ADMINISTRADOR`.
 
@@ -341,6 +344,8 @@ Registro completo (17 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Mapa sem módulo próprio — `MapaQueryRepository` dentro de `propriedade/infra`, com `JOIN` cru contra `agenciamento`/`contrato` | Primeiro épico sem entidade de ciclo de vida próprio: é consulta agregada sobre `propriedade`, que já existe desde o 03. `ApplicationModules.verify()` só enxerga import Java, não SQL — o mesmo padrão que `propriedadesComAgenciamentoVigenteDeTodosOsTenants()` já usava |
 | Filtro `statusContrato` do mapa junta pelo agenciamento mais recente da propriedade, não por `contrato_ativo = true` | Restringir a `contrato_ativo` faria `ENCERRADO`/`CANCELADO` nunca aparecer no filtro — essas linhas já têm a flag `false` por sincronização (Épico 06). `situacao` do imóvel e status do contrato divergem de propósito no domínio (ex. `vender()` não depende do contrato encerrar) |
 | Teto de 500 do mapa sem `COUNT(*)` — `LIMIT 501`, truncado na aplicação, `limitado: boolean` na resposta | Contagem exata via `COUNT(*) OVER()` forçaria varrer todo o bounding box antes do `LIMIT` cortar — o custo que o `LIMIT` deveria evitar. Resultado prático: 1 query, não as 2 (contagem + conteúdo) que toda listagem paginada usa |
+| Painel com módulo próprio (ao contrário do mapa), mas sem `domain/` nem `Facade` — `PainelQueryRepository` com 3 queries (agregados escalares, imóveis por situação, funil), cada uma `JOIN`/SQL cru contra tabela de outro módulo | Painel cruza 4 módulos (`pessoa`, `propriedade`, `orcamento`, `contrato`), não 1 como o mapa — não cabe dentro de nenhum deles sem violar "módulo só importa a Facade de outro". `ApplicationModules.verify()` só enxerga import Java, então SQL cru contra tabela de outro módulo é o mesmo padrão que `PessoaQueryRepository` já usa para calcular `ClassificacaoComercial` |
+| Comissão projetada filtra por `contrato_ativo = true` **e** `contrato_vigencia @> hoje`, não só a flag | Um contrato `ATIVO` cuja vigência já passou continua com a flag `true` até o `ContratoExpiracaoJob` (poll a cada 5 min) rodar — sem o segundo filtro, a projeção contaria comissão de contrato tecnicamente vencido |
 
 ---
 
@@ -358,5 +363,5 @@ Construído por épicos, cada um fechado com teste e documentação antes do pr�
 | 05 — Orçamentos | Módulo `orcamento`, proposta comercial que antecede o contrato | ✅ |
 | 06 — Contratos | Módulo `contrato`, exclusividade de agenciamento via `EXCLUDE`, aditivos | ✅ |
 | 07 — Mapa | Bounding box + filtros combináveis dentro de `propriedade`, sem módulo nem migration novos | ✅ |
-| 08 — Painel operacional | Consultas agregadas | Planejado |
+| 08 — Painel operacional | Módulo `painel`, indicadores agregados de `pessoa`/`propriedade`/`orcamento`/`contrato`, sem migration | ✅ |
 | 09 — Auditoria | Histórico de transição e snapshot de contrato | Planejado |

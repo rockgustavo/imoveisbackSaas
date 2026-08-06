@@ -25,5 +25,9 @@ public record AtualizarPropriedadeRequest(
         @NotBlank String bairro,
         @NotBlank String localidade,
         @NotBlank @Size(min = 2, max = 2) @Schema(example = "SP") String uf,
-        @NotNull Boolean enderecoValidado) {
+        @NotNull Boolean enderecoValidado,
+        @Schema(example = "-23.561684", description = "Corrige manualmente a geolocalização quando informada")
+        BigDecimal latitude,
+        @Schema(example = "-46.655981", description = "Corrige manualmente a geolocalização quando informada")
+        BigDecimal longitude) {
 }

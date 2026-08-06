@@ -56,8 +56,8 @@ public class MapaQueryRepository {
 
     private String condicoesDoFiltro(MapaFiltro filtro) {
         StringBuilder condicoes = new StringBuilder();
-        if (filtro.situacao() != null) {
-            condicoes.append(" AND p.situacao = :situacao");
+        if (filtro.situacoes() != null && !filtro.situacoes().isEmpty()) {
+            condicoes.append(" AND p.situacao IN (:situacoes)");
         }
         if (filtro.statusContrato() != null) {
             condicoes.append(" AND ultimo_agenciamento.status = :statusContrato");
@@ -81,8 +81,8 @@ public class MapaQueryRepository {
     }
 
     private JdbcClient.StatementSpec aplicarParametrosDeFiltro(JdbcClient.StatementSpec consulta, MapaFiltro filtro) {
-        if (filtro.situacao() != null) {
-            consulta = consulta.param("situacao", filtro.situacao().name());
+        if (filtro.situacoes() != null && !filtro.situacoes().isEmpty()) {
+            consulta = consulta.param("situacoes", filtro.situacoes().stream().map(Enum::name).toList());
         }
         if (filtro.statusContrato() != null) {
             consulta = consulta.param("statusContrato", filtro.statusContrato().name());
