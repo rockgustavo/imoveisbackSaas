@@ -28,18 +28,27 @@ class ContratoApiIT extends AbstractIntegrationTest {
     class Criacao {
 
         @Test
-        @DisplayName("cria contrato em RASCUNHO copiando pessoa e itens do orçamento aceito")
+        @DisplayName("RN-06-11: cria contrato em RASCUNHO copiando pessoa e itens do orçamento aceito")
         void criaContratoEmRascunho() throws Exception {
             UUID tenantId = fixture.criarTenant();
             UUID pessoaId = fixture.criarProprietario(tenantId);
             UUID propriedadeId = fixture.criarPropriedade(tenantId, pessoaId);
             UUID orcamentoId = fixture.criarOrcamentoAceito(tenantId, pessoaId, propriedadeId);
 
-            mockMvc.perform(post("/api/v1/contratos")
+            String location = mockMvc.perform(post("/api/v1/contratos")
                             .with(administradorDoTenant(tenantId))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(corpoContrato(orcamentoId, hojeNoFusoDoTenant(), hojeNoFusoDoTenant().plusYears(1))))
-                    .andExpect(status().isCreated());
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getHeader("Location");
+            UUID contratoId = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+
+            mockMvc.perform(get("/api/v1/contratos/{id}", contratoId).with(administradorDoTenant(tenantId)))
+                    .andExpect(jsonPath("$.status").value("RASCUNHO"))
+                    .andExpect(jsonPath("$.agenciamentos.length()").value(1))
+                    .andExpect(jsonPath("$.agenciamentos[0].propriedadeId").value(propriedadeId.toString()))
+                    .andExpect(jsonPath("$.agenciamentos[0].comissaoPercentual").value("5.00"))
+                    .andExpect(jsonPath("$.agenciamentos[0].valorPedido").value(450000.00));
         }
 
         @Test

@@ -1,5 +1,6 @@
 package br.com.rockgustavo.imobiliaria.contrato.application;
 
+import br.com.rockgustavo.imobiliaria.contrato.domain.Agenciamento;
 import br.com.rockgustavo.imobiliaria.contrato.domain.Contrato;
 import br.com.rockgustavo.imobiliaria.contrato.domain.ContratoCancelamentoInviavelException;
 import br.com.rockgustavo.imobiliaria.contrato.domain.ContratoComissaoAcimaDoTetoException;
@@ -107,7 +108,7 @@ class ContratoServiceTest {
     class Criacao {
 
         @Test
-        @DisplayName("cria contrato copiando pessoa e itens do orçamento aceito")
+        @DisplayName("RN-05-09: cria contrato copiando pessoa e itens do orçamento aceito")
         void criaContratoAPartirDeOrcamentoAceito() {
             UUID orcamentoId = UUID.randomUUID();
             UUID pessoaId = UUID.randomUUID();
@@ -126,6 +127,10 @@ class ContratoServiceTest {
             assertThat(captor.getValue().getPessoaId()).isEqualTo(pessoaId);
             assertThat(captor.getValue().getOrcamentoOrigemId()).isEqualTo(orcamentoId);
             assertThat(captor.getValue().getAgenciamentos()).hasSize(1);
+            Agenciamento agenciamento = captor.getValue().getAgenciamentos().get(0);
+            assertThat(agenciamento.getPropriedadeId()).isEqualTo(propriedadeId);
+            assertThat(agenciamento.getComissaoPercentual()).isEqualByComparingTo("6.00");
+            assertThat(agenciamento.getValorPedido()).isEqualByComparingTo("450000.00");
         }
 
         @Test
