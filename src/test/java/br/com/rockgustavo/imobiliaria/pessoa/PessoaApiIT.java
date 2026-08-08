@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.administradorDoTenant;
 import static br.com.rockgustavo.imobiliaria.AutenticacaoTestFixture.comoPessoa;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -179,6 +180,98 @@ class PessoaApiIT extends AbstractIntegrationTest {
             mockMvc.perform(get("/api/v1/pessoas?classificacao=LEAD").with(administradorDoTenant(tenantId)))
                     .andExpect(jsonPath("$.totalElements").value(1))
                     .andExpect(jsonPath("$.content[0].id").value(leadId.toString()));
+        }
+    }
+
+    @Nested
+    @DisplayName("RN-01-03: papéis são acumuláveis na mesma pessoa")
+    class AcumulacaoDePapeis {
+
+        @Test
+        @DisplayName("mesma pessoa acumula PROPRIETARIO e USUARIO")
+        void mesmaPessoaAcumulaProprietarioEUsuario() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Acumuladora");
+
+            atribuirPapel(tenantId, pessoaId, "PROPRIETARIO", "acumuladora@exemplo.com").andExpect(status().isOk());
+            atribuirPapel(tenantId, pessoaId, "USUARIO", "acumuladora@exemplo.com").andExpect(status().isOk());
+
+            mockMvc.perform(get("/api/v1/pessoas/{id}", pessoaId).with(administradorDoTenant(tenantId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.papeis", containsInAnyOrder("PROPRIETARIO", "USUARIO")));
+        }
+
+        @Test
+        @DisplayName("atribuir o mesmo papel duas vezes é rejeitado com 409")
+        void papelRepetidoEhRejeitado() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Repetida");
+            atribuirPapel(tenantId, pessoaId, "PROPRIETARIO", "repetida@exemplo.com").andExpect(status().isOk());
+
+            atribuirPapel(tenantId, pessoaId, "PROPRIETARIO", "repetida@exemplo.com")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.codigo").value("PESSOA_PAPEL_JA_ATRIBUIDO"));
+        }
+    }
+
+    @Nested
+    @DisplayName("RN-01-04: e-mail é obrigatório e único para papel com credencial")
+    class EmailDePapelComCredencial {
+
+        @Test
+        @DisplayName("papel USUARIO sem e-mail em lugar nenhum é rejeitado")
+        void papelComCredencialSemEmailEhRejeitado() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Sem E-mail");
+
+            mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", pessoaId)
+                            .with(administradorDoTenant(tenantId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"papel":"USUARIO"}
+                                    """))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.codigo").value("PESSOA_EMAIL_OBRIGATORIO"));
+        }
+
+        @Test
+        @DisplayName("papel PROPRIETARIO não exige e-mail — não recebe credencial")
+        void papelSemCredencialNaoExigeEmail() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            UUID pessoaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Só Proprietária");
+
+            mockMvc.perform(post("/api/v1/pessoas/{id}/papeis", pessoaId)
+                            .with(administradorDoTenant(tenantId))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"papel":"PROPRIETARIO"}
+                                    """))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("e-mail já usado por outra pessoa do tenant é rejeitado com 409")
+        void emailDuplicadoNoTenantEhRejeitado() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+            UUID primeiraId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Primeira");
+            atribuirPapel(tenantId, primeiraId, "USUARIO", "compartilhado@exemplo.com").andExpect(status().isOk());
+            UUID segundaId = criarPessoaEObterId(tenantId, CpfTestFixture.novoCpfValido(), "Segunda");
+
+            atribuirPapel(tenantId, segundaId, "USUARIO", "compartilhado@exemplo.com")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.codigo").value("PESSOA_EMAIL_DUPLICADO"));
+        }
+
+        @Test
+        @DisplayName("mesmo e-mail em tenants diferentes é aceito")
+        void mesmoEmailEmTenantsDiferentesEhAceito() throws Exception {
+            UUID tenantA = fixture.criarTenant();
+            UUID tenantB = fixture.criarTenant();
+            UUID pessoaA = criarPessoaEObterId(tenantA, CpfTestFixture.novoCpfValido(), "Pessoa A");
+            UUID pessoaB = criarPessoaEObterId(tenantB, CpfTestFixture.novoCpfValido(), "Pessoa B");
+            atribuirPapel(tenantA, pessoaA, "USUARIO", "mesmo@exemplo.com").andExpect(status().isOk());
+
+            atribuirPapel(tenantB, pessoaB, "USUARIO", "mesmo@exemplo.com").andExpect(status().isOk());
         }
     }
 

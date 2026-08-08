@@ -19,19 +19,19 @@ public class ContratoHistoricoQueryRepository {
         this.jdbcClient = jdbcClient;
     }
 
-    public Optional<ContratoHistoricoView> buscarEstadoEm(UUID tenantId, UUID contratoId, Instant ateInstante) {
+    public Optional<ContratoHistoricoView> buscarEstadoEm(UUID tenantId, UUID contratoId, Instant antesDe) {
         return jdbcClient.sql("""
                 SELECT versao, snapshot::text AS snapshot, ocorrido_em
                   FROM contrato_historico
                  WHERE tenant_id = :tenantId
                    AND contrato_id = :contratoId
-                   AND ocorrido_em <= :ateInstante
-                 ORDER BY ocorrido_em DESC
+                   AND ocorrido_em < :antesDe
+                 ORDER BY ocorrido_em DESC, versao DESC
                  LIMIT 1
                 """)
                 .param("tenantId", tenantId)
                 .param("contratoId", contratoId)
-                .param("ateInstante", Timestamp.from(ateInstante))
+                .param("antesDe", Timestamp.from(antesDe))
                 .query(this::mapear)
                 .optional();
     }

@@ -122,6 +122,8 @@ public class ContratoController {
     @ApiResponse(responseCode = "404",
             description = "Contrato não encontrado, de outro tenant, ou sem histórico registrado até a data pedida "
                     + "(CONTRATO_NAO_ENCONTRADO, CONTRATO_HISTORICO_NAO_ENCONTRADO)")
+    @ApiResponse(responseCode = "400",
+            description = "Data ausente ou fora do formato ISO (PARAMETRO_OBRIGATORIO_AUSENTE, PARAMETRO_INVALIDO)")
     public ContratoHistoricoResponse historico(@PathVariable UUID id,
                                                 @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
         ContratoHistoricoDetalhe historico = service.buscarHistoricoEm(id, data);

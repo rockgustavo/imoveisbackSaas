@@ -94,6 +94,17 @@ class ContratoHistoricoIT extends AbstractIntegrationTest {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.codigo").value("CONTRATO_HISTORICO_NAO_ENCONTRADO"));
         }
+
+        @Test
+        @DisplayName("sem o parâmetro data retorna 400 em ProblemDetail, não o erro default do container")
+        void semParametroDataRetorna400EmProblemDetail() throws Exception {
+            UUID tenantId = fixture.criarTenant();
+
+            mockMvc.perform(get("/api/v1/contratos/{id}/historico", UUID.randomUUID())
+                            .with(administradorDoTenant(tenantId)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.codigo").value("PARAMETRO_OBRIGATORIO_AUSENTE"));
+        }
     }
 
     @Nested

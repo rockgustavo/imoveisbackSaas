@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -68,6 +70,26 @@ class ExpiracaoOrcamentoJobTest {
         novoJob().executar();
 
         verify(imobiliariaFacade, times(1)).fusoHorario(tenantId);
+    }
+
+    @Test
+    @DisplayName("RN-05-03: falha em um orçamento não impede a expiração dos demais tenants na mesma rodada")
+    void falhaEmUmOrcamentoNaoInterrompeARodada() {
+        UUID tenantComFalha = UUID.randomUUID();
+        UUID tenantSaudavel = UUID.randomUUID();
+        UUID orcamentoComFalha = UUID.randomUUID();
+        UUID orcamentoSaudavel = UUID.randomUUID();
+        when(imobiliariaFacade.fusoHorario(any())).thenReturn("America/Sao_Paulo");
+        LocalDate ontem = LocalDate.now(ZoneId.of("America/Sao_Paulo")).minusDays(1);
+        when(queryRepository.buscarEnviadosDeTodosOsTenants()).thenReturn(List.of(
+                new OrcamentoEnviadoView(orcamentoComFalha, tenantComFalha, ontem),
+                new OrcamentoEnviadoView(orcamentoSaudavel, tenantSaudavel, ontem)));
+        doThrow(new DataIntegrityViolationException("falha ao persistir a expiração"))
+                .when(orcamentoService).expirarSeAplicavel(eq(orcamentoComFalha), any());
+
+        novoJob().executar();
+
+        verify(orcamentoService).expirarSeAplicavel(eq(orcamentoSaudavel), any());
     }
 
     @Test

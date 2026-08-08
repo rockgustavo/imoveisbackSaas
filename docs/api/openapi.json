@@ -1356,6 +1356,16 @@
                 }
               }
             }
+          },
+          "400" : {
+            "description" : "Data ausente ou fora do formato ISO (PARAMETRO_OBRIGATORIO_AUSENTE, PARAMETRO_INVALIDO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoHistoricoResponse"
+                }
+              }
+            }
           }
         }
       }

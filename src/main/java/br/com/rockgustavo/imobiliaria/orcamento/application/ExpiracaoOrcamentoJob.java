@@ -37,6 +37,7 @@ public class ExpiracaoOrcamentoJob {
         List<OrcamentoEnviadoView> candidatos = queryRepository.buscarEnviadosDeTodosOsTenants();
         Map<UUID, String> fusoPorTenant = new HashMap<>();
         int expirados = 0;
+        int falhas = 0;
         for (OrcamentoEnviadoView candidato : candidatos) {
             String fuso = fusoPorTenant.computeIfAbsent(candidato.tenantId(), imobiliariaFacade::fusoHorario);
             LocalDate hoje = LocalDate.now(ZoneId.of(fuso));
@@ -47,11 +48,15 @@ public class ExpiracaoOrcamentoJob {
             try {
                 orcamentoService.expirarSeAplicavel(candidato.id(), hoje);
                 expirados++;
+            } catch (RuntimeException e) {
+                falhas++;
+                log.error("RN-05-03: falha ao expirar orçamento {} do tenant {}; a rotina segue nos demais",
+                        candidato.id(), candidato.tenantId(), e);
             } finally {
                 TenantContext.limpar();
             }
         }
-        log.info("RN-05-03: rotina de expiração de orçamento expirou {} de {} orçamentos ENVIADO",
-                expirados, candidatos.size());
+        log.info("RN-05-03: rotina de expiração de orçamento expirou {} de {} orçamentos ENVIADO, {} com falha",
+                expirados, candidatos.size(), falhas);
     }
 }

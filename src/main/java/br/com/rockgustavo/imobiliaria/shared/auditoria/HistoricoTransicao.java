@@ -47,14 +47,14 @@ public class HistoricoTransicao {
     }
 
     public HistoricoTransicao(EntidadeAuditavel entidadeTipo, UUID entidadeId, String statusAnterior,
-                               String statusNovo, UUID autor) {
+                               String statusNovo, UUID autor, Instant ocorridoEm) {
         this.id = IdGenerator.novoId();
         this.entidadeTipo = Objects.requireNonNull(entidadeTipo, "entidadeTipo é obrigatório");
         this.entidadeId = Objects.requireNonNull(entidadeId, "entidadeId é obrigatório");
         this.statusAnterior = statusAnterior;
         this.statusNovo = Objects.requireNonNull(statusNovo, "statusNovo é obrigatório");
         this.autor = Objects.requireNonNull(autor, "autor é obrigatório");
-        this.ocorridoEm = Instant.now();
+        this.ocorridoEm = Objects.requireNonNull(ocorridoEm, "ocorridoEm é obrigatório");
     }
 
     public UUID getId() {

@@ -39,7 +39,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -229,8 +228,9 @@ public class ContratoService {
         buscarEntidade(id);
         UUID tenantId = TenantContext.obter();
         ZoneId fuso = ZoneId.of(imobiliariaFacade.fusoHorario(tenantId));
-        Instant ateInstante = data.atTime(LocalTime.MAX).atZone(fuso).toInstant();
-        ContratoHistoricoView view = contratoHistoricoQueryRepository.buscarEstadoEm(tenantId, id, ateInstante)
+        Instant primeiroInstanteDoDiaSeguinte = data.plusDays(1).atStartOfDay(fuso).toInstant();
+        ContratoHistoricoView view = contratoHistoricoQueryRepository
+                .buscarEstadoEm(tenantId, id, primeiroInstanteDoDiaSeguinte)
                 .orElseThrow(() -> new ContratoHistoricoNaoEncontradoException(id, data));
         return new ContratoHistoricoDetalhe(view.versao(), view.ocorridoEm(), contratoHistoricoService.desserializar(view.snapshot()));
     }

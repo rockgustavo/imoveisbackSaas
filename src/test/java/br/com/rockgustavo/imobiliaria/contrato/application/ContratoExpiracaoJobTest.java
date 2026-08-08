@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -68,6 +70,26 @@ class ContratoExpiracaoJobTest {
         novoJob().executar();
 
         verify(imobiliariaFacade, times(1)).fusoHorario(tenantId);
+    }
+
+    @Test
+    @DisplayName("RN-06-09: falha em um contrato não impede a expiração dos demais tenants na mesma rodada")
+    void falhaEmUmContratoNaoInterrompeARodada() {
+        UUID tenantComFalha = UUID.randomUUID();
+        UUID tenantSaudavel = UUID.randomUUID();
+        UUID contratoComFalha = UUID.randomUUID();
+        UUID contratoSaudavel = UUID.randomUUID();
+        when(imobiliariaFacade.fusoHorario(any())).thenReturn("America/Sao_Paulo");
+        LocalDate hoje = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+        when(queryRepository.buscarAtivosDeTodosOsTenants()).thenReturn(List.of(
+                new ContratoAtivoView(contratoComFalha, tenantComFalha, hoje.minusDays(1)),
+                new ContratoAtivoView(contratoSaudavel, tenantSaudavel, hoje.minusDays(1))));
+        doThrow(new DataIntegrityViolationException("colisão de versão em contrato_historico"))
+                .when(contratoService).expirarSeAplicavel(eq(contratoComFalha), any());
+
+        novoJob().executar();
+
+        verify(contratoService).expirarSeAplicavel(eq(contratoSaudavel), eq(hoje));
     }
 
     @Test

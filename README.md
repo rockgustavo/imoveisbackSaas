@@ -327,7 +327,7 @@ Lacuna assumida: `venda` e desfazer reserva não têm gatilho de sucesso via HTT
 
 ## Decisões técnicas
 
-Registro completo (17 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
+Registro completo (20 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
 
 | Decisão | Motivação |
 |---|---|
@@ -353,6 +353,8 @@ Registro completo (17 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Comissão projetada filtra por `contrato_ativo = true` **e** `contrato_vigencia @> hoje`, não só a flag | Um contrato `ATIVO` cuja vigência já passou continua com a flag `true` até o `ContratoExpiracaoJob` (poll a cada 5 min) rodar — sem o segundo filtro, a projeção contaria comissão de contrato tecnicamente vencido |
 | `historico_transicao` gravado por evento assíncrono (`TransicaoStatusOcorrida`); `contrato_historico` gravado direto, síncrono, na mesma transação | O primeiro é log transversal a 3 módulos — cabe no mesmo desenho de evento que já existe (ADR-04). O segundo é snapshot de um único agregado, específico de `contrato`, sem motivo para desacoplar de quem já tem o estado em mãos |
 | `ContratoHistoricoService.registrar` roda em transação própria (`TransactionTemplate` + `PROPAGATION_REQUIRES_NEW`), com retry em colisão de versão | `ContratoExpiracaoJob` (poll a cada 5 min, cruza todos os tenants) pode gravar histórico do mesmo contrato que uma requisição HTTP está gravando ao mesmo tempo — sob essa concorrência real, deixar a exceção estourar reverteria a mudança de status de negócio só por causa de uma foto de auditoria (ADR-18) |
+| Job que cruza tenants captura a falha por item e segue o laço, em vez de deixar a exceção subir | A unidade de trabalho é o candidato, não a rodada. Sem isso, um registro defeituoso de um tenant congela a expiração de todos os outros — e volta a congelar a cada 5 min, porque a consulta reconstrói a mesma lista na mesma ordem (ADR-20) |
+| `historico_transicao.ocorrido_em` carimbado na publicação do evento, não na gravação pelo listener | O listener é assíncrono e multi-thread: duas transições da mesma entidade podem ser gravadas fora de ordem. Numa trilha de auditoria a ordem *é* a informação, então o instante vem de quem sabe quando o fato aconteceu |
 
 ---
 

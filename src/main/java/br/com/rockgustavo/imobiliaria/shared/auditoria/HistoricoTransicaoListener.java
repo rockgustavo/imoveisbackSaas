@@ -18,7 +18,7 @@ public class HistoricoTransicaoListener {
         TenantContext.definir(evento.tenantId());
         try {
             repository.save(new HistoricoTransicao(evento.entidadeTipo(), evento.entidadeId(),
-                    evento.statusAnterior(), evento.statusNovo(), evento.autor()));
+                    evento.statusAnterior(), evento.statusNovo(), evento.autor(), evento.ocorridoEm()));
         } finally {
             TenantContext.limpar();
         }

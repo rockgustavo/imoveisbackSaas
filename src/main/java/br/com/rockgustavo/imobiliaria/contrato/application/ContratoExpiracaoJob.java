@@ -37,6 +37,7 @@ public class ContratoExpiracaoJob {
         List<ContratoAtivoView> candidatos = queryRepository.buscarAtivosDeTodosOsTenants();
         Map<UUID, String> fusoPorTenant = new HashMap<>();
         int expirados = 0;
+        int falhas = 0;
         for (ContratoAtivoView candidato : candidatos) {
             String fuso = fusoPorTenant.computeIfAbsent(candidato.tenantId(), imobiliariaFacade::fusoHorario);
             LocalDate hoje = LocalDate.now(ZoneId.of(fuso));
@@ -47,11 +48,15 @@ public class ContratoExpiracaoJob {
             try {
                 contratoService.expirarSeAplicavel(candidato.id(), hoje);
                 expirados++;
+            } catch (RuntimeException e) {
+                falhas++;
+                log.error("RN-06-09: falha ao expirar contrato {} do tenant {}; a rotina segue nos demais",
+                        candidato.id(), candidato.tenantId(), e);
             } finally {
                 TenantContext.limpar();
             }
         }
-        log.info("RN-06-09: rotina de expiração de contrato expirou {} de {} contratos ATIVO",
-                expirados, candidatos.size());
+        log.info("RN-06-09: rotina de expiração de contrato expirou {} de {} contratos ATIVO, {} com falha",
+                expirados, candidatos.size(), falhas);
     }
 }

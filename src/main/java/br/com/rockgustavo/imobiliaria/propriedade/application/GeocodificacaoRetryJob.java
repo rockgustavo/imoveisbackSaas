@@ -39,6 +39,7 @@ public class GeocodificacaoRetryJob {
         Map<UUID, Short> tentativasMaxPorTenant = new HashMap<>();
         Instant agora = Instant.now();
         int reprocessadas = 0;
+        int falhas = 0;
         for (PropriedadePendenteGeoView candidata : candidatas) {
             short tentativasMax = tentativasMaxPorTenant.computeIfAbsent(candidata.tenantId(),
                     imobiliariaFacade::geocodificacaoTentativasMax);
@@ -49,12 +50,16 @@ public class GeocodificacaoRetryJob {
             try {
                 geocodificacaoService.tentarGeocodificar(candidata.id());
                 reprocessadas++;
+            } catch (RuntimeException e) {
+                falhas++;
+                log.error("RN-04-05: falha ao reprocessar geolocalização da propriedade {} do tenant {}; "
+                        + "a rotina segue nas demais", candidata.id(), candidata.tenantId(), e);
             } finally {
                 TenantContext.limpar();
             }
         }
-        log.info("RN-04-05: retry de geolocalização reprocessou {} de {} propriedades pendentes",
-                reprocessadas, candidatas.size());
+        log.info("RN-04-05: retry de geolocalização reprocessou {} de {} propriedades pendentes, {} com falha",
+                reprocessadas, candidatas.size(), falhas);
     }
 
     private boolean elegivelParaRetry(PropriedadePendenteGeoView candidata, short tentativasMax, Instant agora) {
