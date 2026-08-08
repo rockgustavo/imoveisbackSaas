@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -137,6 +138,34 @@ public class PropriedadeQueryRepository {
                 .query((rs, rowNum) -> (UUID) rs.getObject("propriedade_id"))
                 .list();
         return new HashSet<>(propriedadeIds);
+    }
+
+    public List<PropriedadeEnderecoView> buscarEnderecos(UUID tenantId, Collection<UUID> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return jdbcClient.sql("""
+                SELECT id, tipo, logradouro, numero, complemento, bairro, localidade, uf
+                  FROM propriedade
+                 WHERE tenant_id = :tenantId
+                   AND id IN (:ids)
+                """)
+                .param("tenantId", tenantId)
+                .param("ids", ids)
+                .query(this::mapearEndereco)
+                .list();
+    }
+
+    private PropriedadeEnderecoView mapearEndereco(ResultSet rs, int rowNum) throws SQLException {
+        return new PropriedadeEnderecoView(
+                (UUID) rs.getObject("id"),
+                TipoPropriedade.valueOf(rs.getString("tipo")),
+                rs.getString("logradouro"),
+                rs.getString("numero"),
+                rs.getString("complemento"),
+                rs.getString("bairro"),
+                rs.getString("localidade"),
+                rs.getString("uf"));
     }
 
     private PropriedadeAgenciadaView mapearAgenciada(ResultSet rs, int rowNum) throws SQLException {

@@ -1370,6 +1370,61 @@
         }
       }
     },
+    "/api/v1/contratos/{id}/documento" : {
+      "get" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Gera o instrumento contratual em PDF, pronto para impressão e assinatura",
+        "description" : "Sem `data`, usa o estado atual do contrato. Com `data`, reconstrói o documento a partir do snapshot de RN-09-03 — a qualificação das partes e o endereço dos imóveis sempre refletem o cadastro atual, nunca o histórico",
+        "operationId" : "documento",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "data",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "PDF gerado",
+            "content" : {
+              "application/pdf" : { }
+            }
+          },
+          "404" : {
+            "description" : "Contrato não encontrado, de outro tenant, ou (com `data`) sem histórico registrado até a data pedida (CONTRATO_NAO_ENCONTRADO, CONTRATO_HISTORICO_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "byte"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Data fora do formato ISO (PARAMETRO_INVALIDO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "byte"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ceps/{cep}" : {
       "get" : {
         "tags" : [ "propriedade" ],

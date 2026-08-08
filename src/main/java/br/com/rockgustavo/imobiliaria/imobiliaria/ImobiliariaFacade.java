@@ -1,6 +1,7 @@
 package br.com.rockgustavo.imobiliaria.imobiliaria;
 
 import br.com.rockgustavo.imobiliaria.imobiliaria.application.ImobiliariaParametroService;
+import br.com.rockgustavo.imobiliaria.imobiliaria.application.ImobiliariaService;
 import br.com.rockgustavo.imobiliaria.imobiliaria.application.ParametrosTenant;
 import org.springframework.stereotype.Component;
 
@@ -11,9 +12,18 @@ import java.util.UUID;
 public class ImobiliariaFacade {
 
     private final ImobiliariaParametroService parametroService;
+    private final ImobiliariaService imobiliariaService;
 
-    public ImobiliariaFacade(ImobiliariaParametroService parametroService) {
+    public ImobiliariaFacade(ImobiliariaParametroService parametroService, ImobiliariaService imobiliariaService) {
         this.parametroService = parametroService;
+        this.imobiliariaService = imobiliariaService;
+    }
+
+    public Identificacao identificacao(UUID tenantId) {
+        return imobiliariaService.buscarIdentificacao(tenantId);
+    }
+
+    public record Identificacao(String razaoSocial, String cnpj) {
     }
 
     public ParametrosTenant parametrosDoTenantAtual() {

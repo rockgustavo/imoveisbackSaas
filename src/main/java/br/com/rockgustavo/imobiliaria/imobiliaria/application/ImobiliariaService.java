@@ -1,5 +1,6 @@
 package br.com.rockgustavo.imobiliaria.imobiliaria.application;
 
+import br.com.rockgustavo.imobiliaria.imobiliaria.ImobiliariaFacade.Identificacao;
 import br.com.rockgustavo.imobiliaria.imobiliaria.domain.Imobiliaria;
 import br.com.rockgustavo.imobiliaria.imobiliaria.domain.ImobiliariaDuplicadaException;
 import br.com.rockgustavo.imobiliaria.imobiliaria.domain.ImobiliariaParametro;
@@ -53,5 +54,12 @@ public class ImobiliariaService {
                 .map(imobiliaria -> new TenantAtual(imobiliaria.getId(), imobiliaria.getRazaoSocial(),
                         imobiliaria.getSlug(), imobiliaria.getStatus()))
                 .orElseThrow(() -> new TenantNaoEncontradoException(tenantId));
+    }
+
+    @Transactional(readOnly = true)
+    public Identificacao buscarIdentificacao(UUID tenantId) {
+        Imobiliaria imobiliaria = imobiliariaRepository.findById(tenantId)
+                .orElseThrow(() -> new TenantNaoEncontradoException(tenantId));
+        return new Identificacao(imobiliaria.getRazaoSocial(), imobiliaria.getCnpj());
     }
 }

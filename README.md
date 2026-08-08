@@ -74,9 +74,9 @@ br.com.rockgustavo.imobiliaria/
 
 | Módulo | O que a `Facade` expõe, e para quem |
 |---|---|
-| `imobiliaria` | Parâmetros do tenant (teto de comissão, fuso, validade padrão) — consumida por todos |
-| `pessoa` | Responde `AcessoPort` (revogação, ADR-08); adaptador Keycloak em `infra` (ADR-07) |
-| `propriedade` | Posse, disponibilidade e transição de situação — consumida por `orcamento` e `contrato` |
+| `imobiliaria` | Parâmetros do tenant (teto de comissão, fuso, validade padrão) e identificação (razão social, CNPJ) — consumida por todos |
+| `pessoa` | Responde `AcessoPort` (revogação, ADR-08); adaptador Keycloak em `infra` (ADR-07); qualificação (nome, documento) para o instrumento de contrato |
+| `propriedade` | Posse, disponibilidade, transição de situação e qualificação de endereço em lote — consumida por `orcamento` e `contrato` |
 | `orcamento` | Orçamento aceito (pessoa + itens) para conversão — consumida por `contrato` |
 | `contrato` | Ainda sem consumidor |
 
@@ -290,6 +290,7 @@ Fora do diagrama por não se relacionarem com nada acima: `cep_cache` (sem `tena
 | POST | `/api/v1/contratos/{id}/cancelamento` | `USUARIO`, `ADMIN` | `→ CANCELADO` — rejeitado se alguma propriedade estiver `RESERVADA`/`VENDIDA` |
 | POST | `/api/v1/contratos/{id}/aditivos` | `USUARIO`, `ADMIN` | Inclusão, exclusão ou renegociação de propriedade em contrato `ATIVO` |
 | GET | `/api/v1/contratos/{id}/historico?data=` | `USUARIO`, `ADMIN` | Estado do contrato numa data de sua vigência — snapshot em `contrato_historico`, não recálculo a partir de log de transição |
+| GET | `/api/v1/contratos/{id}/documento[?data=]` | `USUARIO`, `ADMIN` | Instrumento contratual em PDF, pronto para impressão e assinatura — `application/pdf`, `Content-Disposition: attachment`. Sem `data`, estado atual; com `data`, reconstrói a partir do snapshot de `/historico` e carrega nota de ressalva (ADR-21) |
 | GET | `/api/v1/mapa/propriedades` | `USUARIO`, `ADMIN` | Bounding box + filtros combináveis — sem paginação tradicional; acima de 500 resultados, `limitado: true` sinaliza corte. `situacao` é repetível (`?situacao=A&situacao=B`), combina por `OR`; ausente usa o default de RN-07-03 |
 | GET | `/api/v1/painel/indicadores` | `USUARIO`, `ADMIN` | Contratos ativos/vencendo em 30 dias, imóveis por situação, orçamentos aguardando resposta, funil comercial e comissão projetada |
 
@@ -327,7 +328,7 @@ Lacuna assumida: `venda` e desfazer reserva não têm gatilho de sucesso via HTT
 
 ## Decisões técnicas
 
-Registro completo (20 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
+Registro completo (21 ADRs, com contexto e consequência): [`docs/decisoes-tecnicas.md`](docs/decisoes-tecnicas.md).
 
 | Decisão | Motivação |
 |---|---|
@@ -352,6 +353,8 @@ Registro completo (20 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Painel com módulo próprio (ao contrário do mapa), mas sem `domain/` nem `Facade` — `PainelQueryRepository` com 3 queries (agregados escalares, imóveis por situação, funil), cada uma `JOIN`/SQL cru contra tabela de outro módulo | Painel cruza 4 módulos (`pessoa`, `propriedade`, `orcamento`, `contrato`), não 1 como o mapa — não cabe dentro de nenhum deles sem violar "módulo só importa a Facade de outro". `ApplicationModules.verify()` só enxerga import Java, então SQL cru contra tabela de outro módulo é o mesmo padrão que `PessoaQueryRepository` já usa para calcular `ClassificacaoComercial` |
 | Comissão projetada filtra por `contrato_ativo = true` **e** `contrato_vigencia @> hoje`, não só a flag | Um contrato `ATIVO` cuja vigência já passou continua com a flag `true` até o `ContratoExpiracaoJob` (poll a cada 5 min) rodar — sem o segundo filtro, a projeção contaria comissão de contrato tecnicamente vencido |
 | `historico_transicao` gravado por evento assíncrono (`TransicaoStatusOcorrida`); `contrato_historico` gravado direto, síncrono, na mesma transação | O primeiro é log transversal a 3 módulos — cabe no mesmo desenho de evento que já existe (ADR-04). O segundo é snapshot de um único agregado, específico de `contrato`, sem motivo para desacoplar de quem já tem o estado em mãos |
+| Instrumento contratual em PDF: Thymeleaf + openhtmltopdf, não JasperReports/iText/Chrome headless | `.jrxml` é XML gerado por ferramenta gráfica (diff ilegível); iText 7 é AGPL; Chrome headless põe ~400 MB de browser na imagem Docker. Thymeleaf é HTML/CSS versionado, revisável no PR (ADR-21) |
+| `PessoaFacade`/`PropriedadeFacade`/`ImobiliariaFacade` ganham método que devolve dado de qualificação (nome, CNPJ, endereço), não só `boolean` | Nenhum caso de uso anterior precisava de dado de exibição cross-módulo; o instrumento contratual precisa dos três ao mesmo tempo. `PropriedadeFacade.qualificacoes` busca em lote — resolver imóvel a imóvel seria N+1 (ADR-21) |
 | `ContratoHistoricoService.registrar` roda em transação própria (`TransactionTemplate` + `PROPAGATION_REQUIRES_NEW`), com retry em colisão de versão | `ContratoExpiracaoJob` (poll a cada 5 min, cruza todos os tenants) pode gravar histórico do mesmo contrato que uma requisição HTTP está gravando ao mesmo tempo — sob essa concorrência real, deixar a exceção estourar reverteria a mudança de status de negócio só por causa de uma foto de auditoria (ADR-18) |
 | Job que cruza tenants captura a falha por item e segue o laço, em vez de deixar a exceção subir | A unidade de trabalho é o candidato, não a rodada. Sem isso, um registro defeituoso de um tenant congela a expiração de todos os outros — e volta a congelar a cada 5 min, porque a consulta reconstrói a mesma lista na mesma ordem (ADR-20) |
 | `historico_transicao.ocorrido_em` carimbado na publicação do evento, não na gravação pelo listener | O listener é assíncrono e multi-thread: duas transições da mesma entidade podem ser gravadas fora de ordem. Numa trilha de auditoria a ordem *é* a informação, então o instante vem de quem sabe quando o fato aconteceu |

@@ -8,6 +8,7 @@ import br.com.rockgustavo.imobiliaria.shared.security.AcessoPort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -38,5 +39,14 @@ public class PessoaFacade implements AcessoPort {
                 .filter(Pessoa::isAtivo)
                 .map(pessoa -> papelRepository.existsByPessoaIdAndPapel(pessoa.getId(), Papel.PROPRIETARIO))
                 .orElse(false);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Qualificacao> qualificacao(UUID pessoaId) {
+        return pessoaRepository.buscarPorId(pessoaId)
+                .map(pessoa -> new Qualificacao(pessoa.getNome(), pessoa.getTipoDocumento().name(), pessoa.getDocumento()));
+    }
+
+    public record Qualificacao(String nome, String tipoDocumento, String documento) {
     }
 }

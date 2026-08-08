@@ -22,6 +22,7 @@
         <spring-modulith.version>1.4.12</spring-modulith.version>
         <springdoc.version>2.8.17</springdoc.version>
         <uuid-creator.version>5.3.7</uuid-creator.version>
+        <openhtmltopdf.version>1.0.10</openhtmltopdf.version>
         <jacoco.version>0.8.12</jacoco.version>
     </properties>
 
@@ -100,6 +101,17 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- Geração de PDF (ADR-21): Thymeleaf para o template, openhtmltopdf para o render -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>${openhtmltopdf.version}</version>
         </dependency>
 
         <!-- UUID v7 -->

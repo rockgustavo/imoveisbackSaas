@@ -4,6 +4,7 @@ import br.com.rockgustavo.imobiliaria.contrato.application.AditivoComando;
 import br.com.rockgustavo.imobiliaria.contrato.application.AditivoDetalhe;
 import br.com.rockgustavo.imobiliaria.contrato.application.AgenciamentoDetalhe;
 import br.com.rockgustavo.imobiliaria.contrato.application.ContratoDetalhe;
+import br.com.rockgustavo.imobiliaria.contrato.application.ContratoDocumentoService;
 import br.com.rockgustavo.imobiliaria.contrato.application.ContratoFiltro;
 import br.com.rockgustavo.imobiliaria.contrato.application.ContratoHistoricoDetalhe;
 import br.com.rockgustavo.imobiliaria.contrato.application.ContratoService;
@@ -13,6 +14,7 @@ import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoResumoView;
 import br.com.rockgustavo.imobiliaria.shared.web.PageResponse;
 import br.com.rockgustavo.imobiliaria.shared.web.PaginacaoSupport;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,6 +22,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,9 +44,11 @@ import java.util.UUID;
 public class ContratoController {
 
     private final ContratoService service;
+    private final ContratoDocumentoService documentoService;
 
-    public ContratoController(ContratoService service) {
+    public ContratoController(ContratoService service, ContratoDocumentoService documentoService) {
         this.service = service;
+        this.documentoService = documentoService;
     }
 
     @PostMapping
@@ -128,6 +134,27 @@ public class ContratoController {
                                                 @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
         ContratoHistoricoDetalhe historico = service.buscarHistoricoEm(id, data);
         return new ContratoHistoricoResponse(historico.versao(), historico.ocorridoEm(), paraResponse(historico.contrato()));
+    }
+
+    @GetMapping("/{id}/documento")
+    @Operation(summary = "Gera o instrumento contratual em PDF, pronto para impressão e assinatura",
+            description = "Sem `data`, usa o estado atual do contrato. Com `data`, reconstrói o documento a partir "
+                    + "do snapshot de RN-09-03 — a qualificação das partes e o endereço dos imóveis sempre refletem "
+                    + "o cadastro atual, nunca o histórico")
+    @ApiResponse(responseCode = "200", description = "PDF gerado",
+            content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE))
+    @ApiResponse(responseCode = "404",
+            description = "Contrato não encontrado, de outro tenant, ou (com `data`) sem histórico registrado até a "
+                    + "data pedida (CONTRATO_NAO_ENCONTRADO, CONTRATO_HISTORICO_NAO_ENCONTRADO)")
+    @ApiResponse(responseCode = "400", description = "Data fora do formato ISO (PARAMETRO_INVALIDO)")
+    public ResponseEntity<byte[]> documento(@PathVariable UUID id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
+        byte[] pdf = documentoService.gerar(id, data);
+        String nomeArquivo = "contrato-%s.pdf".formatted(id.toString().substring(0, 8));
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nomeArquivo + "\"")
+                .body(pdf);
     }
 
     private static ContratoResponse paraResponse(ContratoDetalhe detalhe) {
