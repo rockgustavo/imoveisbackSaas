@@ -20,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.AuditorAware;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,6 +33,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,15 +55,23 @@ class OrcamentoServiceTest {
     @Mock
     ImobiliariaFacade imobiliariaFacade;
 
+    @Mock
+    ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    AuditorAware<UUID> auditorAware;
+
     private final UUID tenantId = UUID.randomUUID();
 
     private OrcamentoService novoService() {
-        return new OrcamentoService(orcamentoRepository, queryRepository, pessoaFacade, propriedadeFacade, imobiliariaFacade);
+        return new OrcamentoService(orcamentoRepository, queryRepository, pessoaFacade, propriedadeFacade,
+                imobiliariaFacade, eventPublisher, auditorAware);
     }
 
     @BeforeEach
     void definirTenant() {
         TenantContext.definir(tenantId);
+        lenient().when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of(UUID.randomUUID()));
     }
 
     @AfterEach

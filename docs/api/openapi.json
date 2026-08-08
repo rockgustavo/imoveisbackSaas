@@ -1323,6 +1323,43 @@
         }
       }
     },
+    "/api/v1/contratos/{id}/historico" : {
+      "get" : {
+        "tags" : [ "contrato" ],
+        "summary" : "Consulta o estado do contrato em uma data de sua vigência",
+        "description" : "RN-09-03",
+        "operationId" : "historico",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "data",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "Contrato não encontrado, de outro tenant, ou sem histórico registrado até a data pedida (CONTRATO_NAO_ENCONTRADO, CONTRATO_HISTORICO_NAO_ENCONTRADO)",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ContratoHistoricoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ceps/{cep}" : {
       "get" : {
         "tags" : [ "propriedade" ],
@@ -2460,6 +2497,22 @@
           "totalPages" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }
+      },
+      "ContratoHistoricoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "versao" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "ocorridoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "contrato" : {
+            "$ref" : "#/components/schemas/ContratoResponse"
           }
         }
       },

@@ -5,6 +5,7 @@ import br.com.rockgustavo.imobiliaria.contrato.application.AditivoDetalhe;
 import br.com.rockgustavo.imobiliaria.contrato.application.AgenciamentoDetalhe;
 import br.com.rockgustavo.imobiliaria.contrato.application.ContratoDetalhe;
 import br.com.rockgustavo.imobiliaria.contrato.application.ContratoFiltro;
+import br.com.rockgustavo.imobiliaria.contrato.application.ContratoHistoricoDetalhe;
 import br.com.rockgustavo.imobiliaria.contrato.application.ContratoService;
 import br.com.rockgustavo.imobiliaria.contrato.application.CriarContratoComando;
 import br.com.rockgustavo.imobiliaria.contrato.domain.StatusContrato;
@@ -18,6 +19,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -112,6 +115,17 @@ public class ContratoController {
         AditivoComando comando = new AditivoComando(id, request.tipo(), request.propriedadeId(), request.justificativa(),
                 request.comissaoPercentual(), request.valorPedido());
         return paraResponse(service.registrarAditivo(comando));
+    }
+
+    @GetMapping("/{id}/historico")
+    @Operation(summary = "Consulta o estado do contrato em uma data de sua vigência", description = "RN-09-03")
+    @ApiResponse(responseCode = "404",
+            description = "Contrato não encontrado, de outro tenant, ou sem histórico registrado até a data pedida "
+                    + "(CONTRATO_NAO_ENCONTRADO, CONTRATO_HISTORICO_NAO_ENCONTRADO)")
+    public ContratoHistoricoResponse historico(@PathVariable UUID id,
+                                                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
+        ContratoHistoricoDetalhe historico = service.buscarHistoricoEm(id, data);
+        return new ContratoHistoricoResponse(historico.versao(), historico.ocorridoEm(), paraResponse(historico.contrato()));
     }
 
     private static ContratoResponse paraResponse(ContratoDetalhe detalhe) {

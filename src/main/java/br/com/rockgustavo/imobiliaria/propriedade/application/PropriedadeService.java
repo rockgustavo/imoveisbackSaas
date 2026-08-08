@@ -7,13 +7,17 @@ import br.com.rockgustavo.imobiliaria.propriedade.domain.Propriedade;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.PropriedadeCadastrada;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.PropriedadeNaoEncontradaException;
 import br.com.rockgustavo.imobiliaria.propriedade.domain.PropriedadeProprietarioInvalidoException;
+import br.com.rockgustavo.imobiliaria.propriedade.domain.SituacaoPropriedade;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeQueryRepository;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeRepository;
 import br.com.rockgustavo.imobiliaria.propriedade.infra.PropriedadeResumoView;
+import br.com.rockgustavo.imobiliaria.shared.auditoria.EntidadeAuditavel;
+import br.com.rockgustavo.imobiliaria.shared.auditoria.TransicaoStatusOcorrida;
 import br.com.rockgustavo.imobiliaria.shared.geo.Coordenada;
 import br.com.rockgustavo.imobiliaria.shared.geo.EnderecoParaGeocodificar;
 import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,15 +35,17 @@ public class PropriedadeService {
     private final PessoaFacade pessoaFacade;
     private final ApplicationEventPublisher eventPublisher;
     private final GeocodificacaoService geocodificacaoService;
+    private final AuditorAware<UUID> auditorAware;
 
     public PropriedadeService(PropriedadeRepository propriedadeRepository, PropriedadeQueryRepository queryRepository,
                                PessoaFacade pessoaFacade, ApplicationEventPublisher eventPublisher,
-                               GeocodificacaoService geocodificacaoService) {
+                               GeocodificacaoService geocodificacaoService, AuditorAware<UUID> auditorAware) {
         this.propriedadeRepository = propriedadeRepository;
         this.queryRepository = queryRepository;
         this.pessoaFacade = pessoaFacade;
         this.eventPublisher = eventPublisher;
         this.geocodificacaoService = geocodificacaoService;
+        this.auditorAware = auditorAware;
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
@@ -50,6 +56,7 @@ public class PropriedadeService {
                 comando.quartos(), comando.vagas(), comando.valorReferencia(), paraEndereco(comando));
         propriedadeRepository.save(propriedade);
         eventPublisher.publishEvent(new PropriedadeCadastrada(propriedade.getId(), TenantContext.obter()));
+        publicarTransicao(propriedade, null);
         return propriedade.getId();
     }
 
@@ -89,7 +96,9 @@ public class PropriedadeService {
     @Transactional
     public PropriedadeDetalhe retirar(UUID id) {
         Propriedade propriedade = buscarEntidade(id);
+        SituacaoPropriedade anterior = propriedade.getSituacao();
         propriedade.retirar();
+        publicarTransicao(propriedade, anterior.name());
         return paraDetalhe(propriedade);
     }
 
@@ -97,7 +106,9 @@ public class PropriedadeService {
     @Transactional
     public PropriedadeDetalhe reservar(UUID id) {
         Propriedade propriedade = buscarEntidade(id);
+        SituacaoPropriedade anterior = propriedade.getSituacao();
         propriedade.reservar();
+        publicarTransicao(propriedade, anterior.name());
         return paraDetalhe(propriedade);
     }
 
@@ -105,7 +116,9 @@ public class PropriedadeService {
     @Transactional
     public PropriedadeDetalhe desfazerReserva(UUID id) {
         Propriedade propriedade = buscarEntidade(id);
+        SituacaoPropriedade anterior = propriedade.getSituacao();
         propriedade.desfazerReserva();
+        publicarTransicao(propriedade, anterior.name());
         return paraDetalhe(propriedade);
     }
 
@@ -113,18 +126,30 @@ public class PropriedadeService {
     @Transactional
     public PropriedadeDetalhe vender(UUID id) {
         Propriedade propriedade = buscarEntidade(id);
+        SituacaoPropriedade anterior = propriedade.getSituacao();
         propriedade.vender();
+        publicarTransicao(propriedade, anterior.name());
         return paraDetalhe(propriedade);
     }
 
     @Transactional
     public void marcarAgenciada(UUID id) {
-        buscarEntidade(id).agenciar();
+        Propriedade propriedade = buscarEntidade(id);
+        SituacaoPropriedade anterior = propriedade.getSituacao();
+        propriedade.agenciar();
+        if (propriedade.getSituacao() != anterior) {
+            publicarTransicao(propriedade, anterior.name());
+        }
     }
 
     @Transactional
     public void liberarAgenciamento(UUID id) {
-        buscarEntidade(id).liberarAgenciamento();
+        Propriedade propriedade = buscarEntidade(id);
+        SituacaoPropriedade anterior = propriedade.getSituacao();
+        propriedade.liberarAgenciamento();
+        if (propriedade.getSituacao() != anterior) {
+            publicarTransicao(propriedade, anterior.name());
+        }
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
@@ -141,6 +166,11 @@ public class PropriedadeService {
 
     private Propriedade buscarEntidade(UUID id) {
         return propriedadeRepository.buscarPorId(id).orElseThrow(() -> new PropriedadeNaoEncontradaException(id));
+    }
+
+    private void publicarTransicao(Propriedade propriedade, String statusAnterior) {
+        eventPublisher.publishEvent(new TransicaoStatusOcorrida(TenantContext.obter(), EntidadeAuditavel.PROPRIEDADE,
+                propriedade.getId(), statusAnterior, propriedade.getSituacao().name(), auditorAware.getCurrentAuditor().orElseThrow()));
     }
 
     private static Endereco paraEndereco(CriarPropriedadeComando comando) {

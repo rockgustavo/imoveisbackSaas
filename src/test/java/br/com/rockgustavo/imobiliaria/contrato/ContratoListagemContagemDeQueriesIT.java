@@ -32,6 +32,7 @@ class ContratoListagemContagemDeQueriesIT extends AbstractIntegrationTest {
         UUID propriedadeB = fixture.criarPropriedade(tenantId, pessoaId);
         fixture.criarContrato(tenantId, fixture.criarOrcamentoAceito(tenantId, pessoaId, propriedadeA));
         fixture.criarContrato(tenantId, fixture.criarOrcamentoAceito(tenantId, pessoaId, propriedadeB));
+        aguardarEventosDeAuditoriaAssentarem();
 
         dataSourceContandoQueries.zerar();
         mockMvc.perform(get("/api/v1/contratos").with(administradorDoTenant(tenantId)))

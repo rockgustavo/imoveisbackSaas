@@ -15,7 +15,11 @@ import br.com.rockgustavo.imobiliaria.orcamento.infra.OrcamentoRepository;
 import br.com.rockgustavo.imobiliaria.orcamento.infra.OrcamentoResumoView;
 import br.com.rockgustavo.imobiliaria.pessoa.PessoaFacade;
 import br.com.rockgustavo.imobiliaria.propriedade.PropriedadeFacade;
+import br.com.rockgustavo.imobiliaria.shared.auditoria.EntidadeAuditavel;
+import br.com.rockgustavo.imobiliaria.shared.auditoria.TransicaoStatusOcorrida;
 import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,15 +40,20 @@ public class OrcamentoService {
     private final PessoaFacade pessoaFacade;
     private final PropriedadeFacade propriedadeFacade;
     private final ImobiliariaFacade imobiliariaFacade;
+    private final ApplicationEventPublisher eventPublisher;
+    private final AuditorAware<UUID> auditorAware;
 
     public OrcamentoService(OrcamentoRepository orcamentoRepository, OrcamentoQueryRepository queryRepository,
                              PessoaFacade pessoaFacade, PropriedadeFacade propriedadeFacade,
-                             ImobiliariaFacade imobiliariaFacade) {
+                             ImobiliariaFacade imobiliariaFacade, ApplicationEventPublisher eventPublisher,
+                             AuditorAware<UUID> auditorAware) {
         this.orcamentoRepository = orcamentoRepository;
         this.queryRepository = queryRepository;
         this.pessoaFacade = pessoaFacade;
         this.propriedadeFacade = propriedadeFacade;
         this.imobiliariaFacade = imobiliariaFacade;
+        this.eventPublisher = eventPublisher;
+        this.auditorAware = auditorAware;
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
@@ -55,6 +64,7 @@ public class OrcamentoService {
         LocalDate validade = calcularValidade(TenantContext.obter());
         Orcamento orcamento = new Orcamento(comando.pessoaId(), validade, paraItensPropostos(comando.itens()));
         orcamentoRepository.save(orcamento);
+        publicarTransicao(orcamento, null);
         return orcamento.getId();
     }
 
@@ -77,6 +87,7 @@ public class OrcamentoService {
     @Transactional
     public OrcamentoDetalhe enviar(UUID id) {
         Orcamento orcamento = buscarEntidade(id);
+        StatusOrcamento anterior = orcamento.getStatus();
         UUID tenantId = TenantContext.obter();
         BigDecimal teto = imobiliariaFacade.comissaoPercentualTeto(tenantId);
         for (var item : orcamento.getItens()) {
@@ -88,6 +99,7 @@ public class OrcamentoService {
             }
         }
         orcamento.enviar();
+        publicarTransicao(orcamento, anterior.name());
         return paraDetalhe(orcamento);
     }
 
@@ -95,7 +107,9 @@ public class OrcamentoService {
     @Transactional
     public OrcamentoDetalhe aceitar(UUID id) {
         Orcamento orcamento = buscarEntidade(id);
+        StatusOrcamento anterior = orcamento.getStatus();
         orcamento.aceitar(hojeNoFusoDoTenant());
+        publicarTransicao(orcamento, anterior.name());
         return paraDetalhe(orcamento);
     }
 
@@ -103,7 +117,9 @@ public class OrcamentoService {
     @Transactional
     public OrcamentoDetalhe recusar(UUID id) {
         Orcamento orcamento = buscarEntidade(id);
+        StatusOrcamento anterior = orcamento.getStatus();
         orcamento.recusar(hojeNoFusoDoTenant());
+        publicarTransicao(orcamento, anterior.name());
         return paraDetalhe(orcamento);
     }
 
@@ -116,6 +132,7 @@ public class OrcamentoService {
         LocalDate novaValidade = calcularValidade(TenantContext.obter());
         Orcamento copia = original.duplicar(novaValidade, novaVersao, raiz);
         orcamentoRepository.save(copia);
+        publicarTransicao(copia, null);
         return copia.getId();
     }
 
@@ -141,7 +158,9 @@ public class OrcamentoService {
     public void expirarSeAplicavel(UUID id, LocalDate hojeNoFusoDoTenant) {
         orcamentoRepository.buscarPorId(id).ifPresent(orcamento -> {
             if (orcamento.getStatus() == StatusOrcamento.ENVIADO && orcamento.getValidade().isBefore(hojeNoFusoDoTenant)) {
+                StatusOrcamento anterior = orcamento.getStatus();
                 orcamento.expirar();
+                publicarTransicao(orcamento, anterior.name());
             }
         });
     }
@@ -171,6 +190,11 @@ public class OrcamentoService {
 
     private Orcamento buscarEntidade(UUID id) {
         return orcamentoRepository.buscarPorId(id).orElseThrow(() -> new OrcamentoNaoEncontradoException(id));
+    }
+
+    private void publicarTransicao(Orcamento orcamento, String statusAnterior) {
+        eventPublisher.publishEvent(new TransicaoStatusOcorrida(TenantContext.obter(), EntidadeAuditavel.ORCAMENTO,
+                orcamento.getId(), statusAnterior, orcamento.getStatus().name(), auditorAware.getCurrentAuditor().orElseThrow()));
     }
 
     private static List<Orcamento.ItemProposto> paraItensPropostos(List<ItemComando> itens) {

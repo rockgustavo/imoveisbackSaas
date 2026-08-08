@@ -12,6 +12,8 @@
 
 Frontend Angular em repositório separado: [`imoveisfrontSaas`](https://github.com/rockgustavo/imoveisfrontSaas).
 
+📘 [Manual do usuário](Manual_do_Usuario.pdf) — como operar o sistema no dia a dia (login, papéis, propriedades, orçamentos, contratos). Documentação técnica é este README; a de uso é esse PDF.
+
 ---
 
 ## Como subir
@@ -80,6 +82,8 @@ br.com.rockgustavo.imobiliaria/
 
 `shared/geo` guarda as portas `CepClient`/`GeocodificacaoClient`, os adaptadores (BrasilAPI, Nominatim) e `cep_cache` — infra genérica, sem `tenant_id`, sem conhecer `propriedade` (ADR-15). O que precisa do agregado ou de parâmetro por tenant fica em `propriedade/application`.
 
+`shared/auditoria` (Épico 09) é o mesmo desenho: um listener único (`HistoricoTransicaoListener`, `@ApplicationModuleListener`) grava `historico_transicao` sempre que `propriedade`, `orcamento` ou `contrato` publica `TransicaoStatusOcorrida` — evento com payload mínimo (IDs + status como `String`, nunca o enum de domínio, porque `shared` não pode importar módulo nenhum). `contrato_historico` (snapshot temporal, RN-09-03) já é específico do agregado e por isso mora em `contrato/domain`, não em `shared`.
+
 | Regra de fronteira | Por quê |
 |---|---|
 | Um módulo só importa a `Facade` de outro — nunca `api/`, `domain/`, `application/`, `infra/` | Impede o acoplamento crescer por dentro; extrair o módulo vira mudar uma chamada, não desembaraçar um grafo |
@@ -138,7 +142,7 @@ Formato completo de erro e validação em [`docs/convencoes-api.md`](docs/conven
 
 ## Modelo de dados
 
-Escopo atual (Épicos 00–06). Dicionário completo em [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
+Escopo atual (Épicos 00–06 — agregados de domínio; auditoria do Épico 09 fica fora do diagrama, ver nota abaixo). Dicionário completo em [`docs/modelo-de-dados.md`](docs/modelo-de-dados.md).
 
 ```mermaid
 erDiagram
@@ -245,7 +249,7 @@ erDiagram
 
 Toda tabela carrega `criado_em`/`criado_por`/`alterado_em`/`alterado_por` (omitidos acima; `pessoa_papel` só tem os dois primeiros — vínculo é criado ou removido, nunca editado). `imobiliaria` não tem `tenant_id` — ela **é** o tenant.
 
-Fora do diagrama por não se relacionarem com nada acima: `cep_cache` (sem `tenant_id` — CEP tem o mesmo endereço para qualquer tenant, ADR-06) e `event_publication` (schema oficial do `spring-modulith-events-jdbc`, criado por migration, ADR-15).
+Fora do diagrama por não se relacionarem com nada acima: `cep_cache` (sem `tenant_id` — CEP tem o mesmo endereço para qualquer tenant, ADR-06) e `event_publication` (schema oficial do `spring-modulith-events-jdbc`, criado por migration, ADR-15). Também fora, por serem log/auditoria e não agregado de negócio: `historico_transicao` (Épico 09, uma linha por transição de status de `propriedade`/`orcamento`/`contrato`, sem FK — `entidade_id` referencia três tabelas diferentes) e `contrato_historico` (Épico 09, snapshot `jsonb` do contrato a cada alteração relevante, RN-09-03/ADR-09).
 
 **Parâmetro não retroage.** Quem usa um parâmetro (validade de orçamento, teto de comissão) **copia** o valor no momento relevante, em vez de fazer `JOIN` na leitura — mudar o teto hoje não reescreve contratos já assinados.
 
@@ -285,6 +289,7 @@ Fora do diagrama por não se relacionarem com nada acima: `cep_cache` (sem `tena
 | POST | `/api/v1/contratos/{id}/encerramento` | `USUARIO`, `ADMIN` | `ATIVO → ENCERRADO` — distrato antecipado, exige justificativa |
 | POST | `/api/v1/contratos/{id}/cancelamento` | `USUARIO`, `ADMIN` | `→ CANCELADO` — rejeitado se alguma propriedade estiver `RESERVADA`/`VENDIDA` |
 | POST | `/api/v1/contratos/{id}/aditivos` | `USUARIO`, `ADMIN` | Inclusão, exclusão ou renegociação de propriedade em contrato `ATIVO` |
+| GET | `/api/v1/contratos/{id}/historico?data=` | `USUARIO`, `ADMIN` | Estado do contrato numa data de sua vigência — snapshot em `contrato_historico`, não recálculo a partir de log de transição |
 | GET | `/api/v1/mapa/propriedades` | `USUARIO`, `ADMIN` | Bounding box + filtros combináveis — sem paginação tradicional; acima de 500 resultados, `limitado: true` sinaliza corte. `situacao` é repetível (`?situacao=A&situacao=B`), combina por `OR`; ausente usa o default de RN-07-03 |
 | GET | `/api/v1/painel/indicadores` | `USUARIO`, `ADMIN` | Contratos ativos/vencendo em 30 dias, imóveis por situação, orçamentos aguardando resposta, funil comercial e comissão projetada |
 
@@ -346,6 +351,8 @@ Registro completo (17 ADRs, com contexto e consequência): [`docs/decisoes-tecni
 | Teto de 500 do mapa sem `COUNT(*)` — `LIMIT 501`, truncado na aplicação, `limitado: boolean` na resposta | Contagem exata via `COUNT(*) OVER()` forçaria varrer todo o bounding box antes do `LIMIT` cortar — o custo que o `LIMIT` deveria evitar. Resultado prático: 1 query, não as 2 (contagem + conteúdo) que toda listagem paginada usa |
 | Painel com módulo próprio (ao contrário do mapa), mas sem `domain/` nem `Facade` — `PainelQueryRepository` com 3 queries (agregados escalares, imóveis por situação, funil), cada uma `JOIN`/SQL cru contra tabela de outro módulo | Painel cruza 4 módulos (`pessoa`, `propriedade`, `orcamento`, `contrato`), não 1 como o mapa — não cabe dentro de nenhum deles sem violar "módulo só importa a Facade de outro". `ApplicationModules.verify()` só enxerga import Java, então SQL cru contra tabela de outro módulo é o mesmo padrão que `PessoaQueryRepository` já usa para calcular `ClassificacaoComercial` |
 | Comissão projetada filtra por `contrato_ativo = true` **e** `contrato_vigencia @> hoje`, não só a flag | Um contrato `ATIVO` cuja vigência já passou continua com a flag `true` até o `ContratoExpiracaoJob` (poll a cada 5 min) rodar — sem o segundo filtro, a projeção contaria comissão de contrato tecnicamente vencido |
+| `historico_transicao` gravado por evento assíncrono (`TransicaoStatusOcorrida`); `contrato_historico` gravado direto, síncrono, na mesma transação | O primeiro é log transversal a 3 módulos — cabe no mesmo desenho de evento que já existe (ADR-04). O segundo é snapshot de um único agregado, específico de `contrato`, sem motivo para desacoplar de quem já tem o estado em mãos |
+| `ContratoHistoricoService.registrar` roda em transação própria (`TransactionTemplate` + `PROPAGATION_REQUIRES_NEW`), com retry em colisão de versão | `ContratoExpiracaoJob` (poll a cada 5 min, cruza todos os tenants) pode gravar histórico do mesmo contrato que uma requisição HTTP está gravando ao mesmo tempo — sob essa concorrência real, deixar a exceção estourar reverteria a mudança de status de negócio só por causa de uma foto de auditoria (ADR-18) |
 
 ---
 
@@ -364,4 +371,4 @@ Construído por épicos, cada um fechado com teste e documentação antes do pr�
 | 06 — Contratos | Módulo `contrato`, exclusividade de agenciamento via `EXCLUDE`, aditivos | ✅ |
 | 07 — Mapa | Bounding box + filtros combináveis dentro de `propriedade`, sem módulo nem migration novos | ✅ |
 | 08 — Painel operacional | Módulo `painel`, indicadores agregados de `pessoa`/`propriedade`/`orcamento`/`contrato`, sem migration | ✅ |
-| 09 — Auditoria | Histórico de transição e snapshot de contrato | Planejado |
+| 09 — Auditoria | Módulo `shared/auditoria`, log de transição de status (`historico_transicao`) e snapshot temporal de contrato (`contrato_historico`) | ✅ |

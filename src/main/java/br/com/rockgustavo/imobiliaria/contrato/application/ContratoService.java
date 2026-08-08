@@ -3,6 +3,7 @@ package br.com.rockgustavo.imobiliaria.contrato.application;
 import br.com.rockgustavo.imobiliaria.contrato.domain.Agenciamento;
 import br.com.rockgustavo.imobiliaria.contrato.domain.Contrato;
 import br.com.rockgustavo.imobiliaria.contrato.domain.ContratoCancelamentoInviavelException;
+import br.com.rockgustavo.imobiliaria.contrato.domain.ContratoHistoricoNaoEncontradoException;
 import br.com.rockgustavo.imobiliaria.contrato.domain.ContratoNaoEncontradoException;
 import br.com.rockgustavo.imobiliaria.contrato.domain.ContratoPropriedadeIndisponivelException;
 import br.com.rockgustavo.imobiliaria.contrato.domain.ContratoVigenciaSobrepostaException;
@@ -11,6 +12,8 @@ import br.com.rockgustavo.imobiliaria.contrato.domain.PropriedadeProprietarioDiv
 import br.com.rockgustavo.imobiliaria.contrato.domain.StatusContrato;
 import br.com.rockgustavo.imobiliaria.contrato.domain.TipoAditivo;
 import br.com.rockgustavo.imobiliaria.contrato.infra.ConflitoVigenciaView;
+import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoHistoricoQueryRepository;
+import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoHistoricoView;
 import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoQueryRepository;
 import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoRepository;
 import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoResumoView;
@@ -19,10 +22,14 @@ import br.com.rockgustavo.imobiliaria.orcamento.OrcamentoFacade;
 import br.com.rockgustavo.imobiliaria.orcamento.OrcamentoFacade.ItemAceito;
 import br.com.rockgustavo.imobiliaria.orcamento.OrcamentoFacade.OrcamentoAceitoDetalhe;
 import br.com.rockgustavo.imobiliaria.propriedade.PropriedadeFacade;
+import br.com.rockgustavo.imobiliaria.shared.auditoria.EntidadeAuditavel;
+import br.com.rockgustavo.imobiliaria.shared.auditoria.TransicaoStatusOcorrida;
 import br.com.rockgustavo.imobiliaria.shared.tenant.TenantContext;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,7 +37,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,18 +53,29 @@ public class ContratoService {
 
     private final ContratoRepository contratoRepository;
     private final ContratoQueryRepository queryRepository;
+    private final ContratoHistoricoService contratoHistoricoService;
+    private final ContratoHistoricoQueryRepository contratoHistoricoQueryRepository;
     private final OrcamentoFacade orcamentoFacade;
     private final PropriedadeFacade propriedadeFacade;
     private final ImobiliariaFacade imobiliariaFacade;
+    private final ApplicationEventPublisher eventPublisher;
+    private final AuditorAware<UUID> auditorAware;
 
     public ContratoService(ContratoRepository contratoRepository, ContratoQueryRepository queryRepository,
+                            ContratoHistoricoService contratoHistoricoService,
+                            ContratoHistoricoQueryRepository contratoHistoricoQueryRepository,
                             OrcamentoFacade orcamentoFacade, PropriedadeFacade propriedadeFacade,
-                            ImobiliariaFacade imobiliariaFacade) {
+                            ImobiliariaFacade imobiliariaFacade, ApplicationEventPublisher eventPublisher,
+                            AuditorAware<UUID> auditorAware) {
         this.contratoRepository = contratoRepository;
         this.queryRepository = queryRepository;
+        this.contratoHistoricoService = contratoHistoricoService;
+        this.contratoHistoricoQueryRepository = contratoHistoricoQueryRepository;
         this.orcamentoFacade = orcamentoFacade;
         this.propriedadeFacade = propriedadeFacade;
         this.imobiliariaFacade = imobiliariaFacade;
+        this.eventPublisher = eventPublisher;
+        this.auditorAware = auditorAware;
     }
 
     @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
@@ -75,6 +95,7 @@ public class ContratoService {
         Contrato contrato = new Contrato(aceito.pessoaId(), comando.orcamentoId(), comando.vigenciaInicio(),
                 comando.vigenciaFim(), comando.regrasContratuais(), itens);
         contratoRepository.save(contrato);
+        publicarTransicao(contrato, null);
         return contrato.getId();
     }
 
@@ -88,6 +109,7 @@ public class ContratoService {
     @Transactional
     public ContratoDetalhe ativar(UUID id) {
         Contrato contrato = buscarEntidade(id);
+        StatusContrato anterior = contrato.getStatus();
         UUID tenantId = TenantContext.obter();
         for (Agenciamento agenciamento : contrato.getAgenciamentos()) {
             exigirDisponibilidadeENaoConflito(tenantId, contrato, agenciamento.getPropriedadeId());
@@ -102,6 +124,8 @@ public class ContratoService {
             throw perdeuACorridaPelaVigencia(contrato);
         }
         contrato.getAgenciamentos().forEach(a -> propriedadeFacade.agenciar(a.getPropriedadeId()));
+        publicarTransicao(contrato, anterior.name());
+        registrarHistorico(contrato);
         return paraDetalhe(contrato);
     }
 
@@ -109,9 +133,12 @@ public class ContratoService {
     @Transactional
     public ContratoDetalhe encerrar(UUID id, String justificativa) {
         Contrato contrato = buscarEntidade(id);
+        StatusContrato anterior = contrato.getStatus();
         List<UUID> propriedadeIds = contrato.getPropriedadeIds();
         contrato.encerrar(justificativa);
         propriedadeIds.forEach(propriedadeFacade::liberarAgenciamento);
+        publicarTransicao(contrato, anterior.name());
+        registrarHistorico(contrato);
         return paraDetalhe(contrato);
     }
 
@@ -119,7 +146,8 @@ public class ContratoService {
     @Transactional
     public ContratoDetalhe cancelar(UUID id) {
         Contrato contrato = buscarEntidade(id);
-        boolean eraAtivo = contrato.getStatus() == StatusContrato.ATIVO;
+        StatusContrato anterior = contrato.getStatus();
+        boolean eraAtivo = anterior == StatusContrato.ATIVO;
         if (eraAtivo) {
             for (UUID propriedadeId : contrato.getPropriedadeIds()) {
                 if (!propriedadeFacade.semNegociacaoEmAndamento(propriedadeId)) {
@@ -132,6 +160,8 @@ public class ContratoService {
         if (eraAtivo) {
             propriedadeIds.forEach(propriedadeFacade::liberarAgenciamento);
         }
+        publicarTransicao(contrato, anterior.name());
+        registrarHistorico(contrato);
         return paraDetalhe(contrato);
     }
 
@@ -143,6 +173,7 @@ public class ContratoService {
         if (comando.tipo() == TipoAditivo.EXCLUSAO) {
             contrato.excluirPropriedade(comando.propriedadeId(), comando.justificativa());
             propriedadeFacade.liberarAgenciamento(comando.propriedadeId());
+            registrarHistorico(contrato);
             return paraDetalhe(contrato);
         }
 
@@ -163,6 +194,7 @@ public class ContratoService {
         if (!jaAgenciada) {
             propriedadeFacade.agenciar(comando.propriedadeId());
         }
+        registrarHistorico(contrato);
         return paraDetalhe(contrato);
     }
 
@@ -182,10 +214,25 @@ public class ContratoService {
             if (contrato.getStatus() != StatusContrato.ATIVO || !contrato.getVigenciaFim().isBefore(hojeNoFusoDoTenant)) {
                 return;
             }
+            StatusContrato anterior = contrato.getStatus();
             List<UUID> propriedadeIds = contrato.getPropriedadeIds();
             contrato.expirar();
             propriedadeIds.forEach(propriedadeFacade::liberarAgenciamento);
+            publicarTransicao(contrato, anterior.name());
+            registrarHistorico(contrato);
         });
+    }
+
+    @PreAuthorize("hasAnyRole('USUARIO', 'ADMINISTRADOR')")
+    @Transactional(readOnly = true)
+    public ContratoHistoricoDetalhe buscarHistoricoEm(UUID id, LocalDate data) {
+        buscarEntidade(id);
+        UUID tenantId = TenantContext.obter();
+        ZoneId fuso = ZoneId.of(imobiliariaFacade.fusoHorario(tenantId));
+        Instant ateInstante = data.atTime(LocalTime.MAX).atZone(fuso).toInstant();
+        ContratoHistoricoView view = contratoHistoricoQueryRepository.buscarEstadoEm(tenantId, id, ateInstante)
+                .orElseThrow(() -> new ContratoHistoricoNaoEncontradoException(id, data));
+        return new ContratoHistoricoDetalhe(view.versao(), view.ocorridoEm(), contratoHistoricoService.desserializar(view.snapshot()));
     }
 
     private void exigirDisponibilidadeENaoConflito(UUID tenantId, Contrato contrato, UUID propriedadeId) {
@@ -226,6 +273,15 @@ public class ContratoService {
 
     private Contrato buscarEntidade(UUID id) {
         return contratoRepository.buscarPorId(id).orElseThrow(() -> new ContratoNaoEncontradoException(id));
+    }
+
+    private void publicarTransicao(Contrato contrato, String statusAnterior) {
+        eventPublisher.publishEvent(new TransicaoStatusOcorrida(TenantContext.obter(), EntidadeAuditavel.CONTRATO,
+                contrato.getId(), statusAnterior, contrato.getStatus().name(), auditorAware.getCurrentAuditor().orElseThrow()));
+    }
+
+    private void registrarHistorico(Contrato contrato) {
+        contratoHistoricoService.registrar(paraDetalhe(contrato));
     }
 
     private static ContratoDetalhe paraDetalhe(Contrato contrato) {

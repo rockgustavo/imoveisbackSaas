@@ -10,6 +10,7 @@ import br.com.rockgustavo.imobiliaria.contrato.domain.OrcamentoJaOriginouContrat
 import br.com.rockgustavo.imobiliaria.contrato.domain.PropriedadeProprietarioDivergenteException;
 import br.com.rockgustavo.imobiliaria.contrato.domain.TipoAditivo;
 import br.com.rockgustavo.imobiliaria.contrato.infra.ConflitoVigenciaView;
+import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoHistoricoQueryRepository;
 import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoQueryRepository;
 import br.com.rockgustavo.imobiliaria.contrato.infra.ContratoRepository;
 import br.com.rockgustavo.imobiliaria.imobiliaria.ImobiliariaFacade;
@@ -28,8 +29,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.AuditorAware;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -42,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,6 +63,12 @@ class ContratoServiceTest {
     ContratoQueryRepository queryRepository;
 
     @Mock
+    ContratoHistoricoService contratoHistoricoService;
+
+    @Mock
+    ContratoHistoricoQueryRepository contratoHistoricoQueryRepository;
+
+    @Mock
     OrcamentoFacade orcamentoFacade;
 
     @Mock
@@ -67,15 +77,24 @@ class ContratoServiceTest {
     @Mock
     ImobiliariaFacade imobiliariaFacade;
 
+    @Mock
+    ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    AuditorAware<UUID> auditorAware;
+
     private final UUID tenantId = UUID.randomUUID();
 
     private ContratoService novoService() {
-        return new ContratoService(contratoRepository, queryRepository, orcamentoFacade, propriedadeFacade, imobiliariaFacade);
+        return new ContratoService(contratoRepository, queryRepository, contratoHistoricoService,
+                contratoHistoricoQueryRepository, orcamentoFacade, propriedadeFacade, imobiliariaFacade,
+                eventPublisher, auditorAware);
     }
 
     @BeforeEach
     void definirTenant() {
         TenantContext.definir(tenantId);
+        lenient().when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of(UUID.randomUUID()));
     }
 
     @AfterEach

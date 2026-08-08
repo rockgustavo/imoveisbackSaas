@@ -29,6 +29,7 @@ class PainelQueryContagemDeQueriesIT extends AbstractIntegrationTest {
         UUID tenantId = fixture.criarTenant();
         UUID proprietario = fixture.criarProprietario(tenantId);
         fixture.criarContratoAtivo(tenantId, proprietario, fixture.criarPropriedade(tenantId, proprietario));
+        aguardarEventosDeAuditoriaAssentarem();
 
         dataSourceContandoQueries.zerar();
         mockMvc.perform(get("/api/v1/painel/indicadores").with(administradorDoTenant(tenantId)))
